@@ -57,14 +57,16 @@ Shardfall is a top-down action game focused on tight moment-to-moment combat and
 - **Carried lantern** that orbits the hero based on facing direction.
 - **Sword attack** with a slash-arc VFX, a forward cone hit test (dot-product facing check), knockback, and a cooldown.
 - **Dash roll** with invulnerability frames (i-frames), a cooldown meter, and randomized ghost-trail afterimages.
-- **Auto-healing** — regenerates `+12 HP` every `3.5 s`, in addition to crystal pickups.
+- **Auto-healing** — regenerates `3 HP/s` starting `4 s` after last taking damage, in addition to crystal pickups.
 - Health system with three-tier damage colouring (green > 60, amber > 30, red otherwise).
 
 ### Combat
-- Three enemy archetypes:
+- Four enemy archetypes:
   - **Crawler / Crag Crawler** — fast, low-health melee pursuer with no wind-up.
   - **Shadow Demon** — slower, heavier hitter with a telegraphed wind-up.
+  - **Charger** (Mountain realm) — telegraphs a straight charge, then blitzes at high speed; hitting an obstacle ends the charge and stuns it.
   - **Shadow Lord (Boss)** — large health pool, an on-screen health bar, and a telegraphed ground-slam that emits an expanding damage ring (shockwave).
+- **Boss phases** — three phases by HP (100–60%, 60–30%, below 30%): slams get faster each phase, a second wider shockwave ring is added from phase 2 onward, and the boss gains a `+20%` speed boost in phase 3. Each phase change triggers a brief invulnerable roar pause.
 - **Wind-up telegraphs** — Demons and the Boss flash white, freeze position, then strike.
 - **Boss slam warning** — a pulsing red ground ring plus an audible warning tone precede each slam.
 - Directional hit confirmation using a dot-product facing test, with per-target hit timers.
@@ -72,13 +74,18 @@ Shardfall is a top-down action game focused on tight moment-to-moment combat and
 - **Screen shake** on every impactful event (hits, dashes, slams, teleports, enemy deaths).
 - Damage-taken history for the last 10 seconds (surfaced in the debug overlay).
 
+### Combat Feel
+- **Hitstop** — short freeze-frames on impact (`0.06 s` on enemy hits, `0.08 s` on player hits) for weighty feedback.
+- **Input buffering** — attack and dash presses are buffered for `0.15 s`, so they fire automatically the moment the cooldown ends.
+- Dash i-frames (`0.12 s`) and post-damage regeneration (`4 s` delay) round out the responsive combat model.
+
 ### Realms
 - **Mystic Forest Valley** — grass patches, a flowing curved river with animated shimmer, a winding dirt path, trees, mossy boulders, and drifting firefly motes. Green/cyan crystal palette.
 - **Craggy Mountain Peaks** — layered 3D-shaded mountain ridges, a sky horizon fog band, a bottomless canyon gorge with a glowing magma vein, wooden/stone bridges, rocky cliff steppes, jagged crag obstacles, and blowing snow/wind motes. Purple/orange-red crystal palette.
 - Distinct realm-specific ambient tinting (vignette) and weather behaviour per realm.
 - Physical collision with trees, boulders, and crags, plus a mountain-top boundary that prevents walking off the peaks.
 
-### Teleport Pods (Marvel-style Gateway)
+### Teleport Pods (Arcane Gateway)
 - Animated gateway built from persistent, reused geometry (allocation-free per frame).
 - Layered elliptical glow, rotating vortex energy disc, three counter-rotating ring arcs, a white-hot rim, a pulsing core, and an orbiting rune gem.
 - Rim sparks emitted with gravity and drag for a cinematic energy effect.
@@ -88,6 +95,16 @@ Shardfall is a top-down action game focused on tight moment-to-moment combat and
 - All sound effects are synthesized at startup — no audio files are shipped.
 - Includes: sword swing whoosh, hit crunch, crystal chime, dash swoosh, boss slam rumble, boss slam warning ping, and teleport warp.
 - An ambient drone BGM buffer is generated but currently disabled (kept for optional use).
+
+### Scoring
+- Crystal pickup: `+25`.
+- Enemy kills: Crawler/Charger `+20`, Shadow Demon `+40`, Shadow Lord (Boss) `+150`.
+- **Kill combo** — a kill within `3 s` of the previous one raises the multiplier (`x1.2`, `x1.4`, … up to `x2.0`); it resets after `3 s` without a kill or when taking damage.
+- **Perfect dodge** — `+10` when dash i-frames absorb an attack.
+- **Victory bonus** — `+300` for winning.
+- **No-damage bonus** — up to `+500` for finishing untouched (`+250` under 50 damage taken, `+100` under 100).
+- **Time bonus** — `+2` per second under `300 s` when you win.
+- The high score is saved at the end of each run.
 
 ### Progression & Persistence
 - Collect all 4 crystals **and** defeat every enemy to trigger victory.
@@ -100,6 +117,7 @@ Shardfall is a top-down action game focused on tight moment-to-moment combat and
 - Hero avatar emblem and high-score record display on the login screen.
 - **In-game HUD** — health bar with numeric readout and heal indicator, dash charge meter with ready/dashing status, realm badge, hero profile badge, and a score / high-score / crystal tracker card.
 - On-screen controls prompt bar along the bottom.
+- **First-run hints** — short on-screen prompts for Move, Attack, Dash, and Pause appear during the first `30 s` of a new hero's first run, each dismissing once the action is used.
 - **Victory / defeat modals** with contextual actions (restart, dashboard, logout) and a "NEW RECORD" flag.
 - **Debug overlay** (toggled with `F3`) showing smoothed FPS, player HP, dash cooldown, and damage taken in the last 10 seconds.
 
@@ -122,7 +140,9 @@ Shardfall is a top-down action game focused on tight moment-to-moment combat and
 | Enter Realm / Confirm | `Enter` (login screen)                    |
 | Hall of Heroes      | `H`                                         |
 | Toggle Debug Overlay | `F3`                                       |
-| Pause Menu          | `Esc` or `P` (during play)                  |
+| Pause Menu          | `Esc` or `P`: Pause menu (Resume, Volume, Screen Shake, Quit to Login) |
+| Pause: Navigate     | `Up`/`Down` or `W`/`S` + `Enter`: navigate & confirm |
+| Pause: Adjust       | `Left`/`Right`: change Volume / Screen Shake |
 | Restart (after end) | `R`                                         |
 | Logout to login     | `L` (after end)                             |
 | Close / Back        | `Esc` on screen, exit when `Esc`           |
@@ -215,7 +235,7 @@ The game is organized as a single-file program with clearly separated systems.
 
 | System             | Responsibility                                                                 |
 | ------------------ | ------------------------------------------------------------------------------ |
-| Game loop          | SFML event pump + fixed-timestep update + render pipeline                       |
+| Game loop          | SFML event pump + capped 60 FPS, delta-time update + render pipeline            |
 | State machine      | `LoginScreen` and `Playing` states driven by `GameState`                        |
 | Entity model       | Plain structs (`Enemy`, `Crystal`, `Tree`, `Boulder`, `MountainPeak`, ...)      |
 | Rendering          | Collects draw callbacks into a `Renderable` list and Y-sorts before drawing     |
@@ -233,7 +253,7 @@ The game is organized as a single-file program with clearly separated systems.
 ### Key Constants
 - Player base speed: `250 px/s`; dash speed: `680 px/s`.
 - Dash details: `1.2 s` cooldown, `0.22 s` dash duration, `0.12 s` i-frames.
-- Auto-heal: `+12 HP` every `3.5 s`.
+- Auto-heal: `3 HP/s` starting `4 s` after the last damage taken.
 - Attack cooldown: `0.35 s`; attack window: `0.22 s`.
 - Enemy wind-up: Demon `0.3 s`, Boss melee `0.4 s`.
 - Boss slam interval: `3.4 s`; slam telegraph: `0.7 s`; shockwave damage: `16`.
