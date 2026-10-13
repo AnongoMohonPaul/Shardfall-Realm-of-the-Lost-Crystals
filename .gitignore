@@ -1,0 +1,12 @@
+*.exe
+*.dll
+*.o
+*.tmp.cpp
+backups/
+main_*_ok.cpp
+highscore.txt
+history.txt
+settings.txt
+hints_seen.txt
+.vscode/
+.vs/
