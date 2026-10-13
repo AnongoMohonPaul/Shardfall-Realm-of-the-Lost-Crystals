@@ -28,7 +28,7 @@ struct MatchRecord
 enum class RealmLocation { ForestValley, MountainPeaks };
 
 // Game State Enum
-enum class GameState { LoginScreen, Playing };
+enum class GameState { HomeMenu, LoginScreen, Playing, Settings, HowToPlay };
 
 // Gameplay Balance Tuning
 struct Balance
@@ -87,6 +87,78 @@ struct Balance
     float hintInterval = 4.f;    // seconds each first-run hint stays on screen
     float hintFadeTime = 0.6f;   // fade in/out duration for hints
     float hintsRunWindow = 30.f; // only show hints during the first 30 s of a run
+
+    // Hero drawing/animation (visuals only, no gameplay effect)
+    float heroSwingAngle = 32.f;      // limb rotation in degrees at full walk
+    float heroWalkSpeedFactor = 11.f; // walk-phase advance per second while moving
+    float heroWalkEase = 10.f;        // how fast the walk pose eases in/out
+    float heroBreathAmount = 1.6f;    // px torso rise/fall while standing still
+    float heroBreathRate = 2.4f;      // idle breathing speed in rad/s
+
+    // Regular-enemy drawing/animation (visuals only, no gameplay effect)
+    float enemySwingAngle = 26.f;       // limb swing in degrees at full walk
+    float enemyWalkSpeedFactor = 0.08f; // walk-phase radians per pixel travelled
+    float enemyWalkEase = 8.f;          // how fast the walk pose eases in/out
+    float enemyBreathAmount = 1.4f;     // px idle breathing / hover
+    float enemyBreathRate = 2.6f;       // idle breathing speed in rad/s
+
+    // Hero sword-attack animation (visuals only; follows the existing attack timer)
+    float heroAttackAnimDuration = 0.22f; // matches attackTimer set in performAttack()
+    float heroAttackAnticFrac = 0.30f;    // anticipation ends at this fraction (0..1)
+    float heroAttackStrikeFrac = 0.62f;   // strike ends / recovery begins at this fraction
+    float heroAnticipationAngle = 38.f;   // pull-back angle before the strike (deg)
+    float heroStrikeAngle = 62.f;         // swing-through angle past neutral (deg)
+    float heroLeanAmount = 0.18f;         // torso lean/twist per swing degree
+    float heroAttackPlant = 0.7f;         // how much the legs plant during a swing
+    int heroTrailLength = 7;              // max sword-trail samples drawn
+    float heroTrailDuration = 0.16f;      // seconds a trail sample persists
+
+    // Giant Fireball Hazard (Craggy Mountain Peaks only)
+    float fireballMinInterval = 7.f;      // random interval range between events (s)
+    float fireballMaxInterval = 14.f;     // random interval range between events (s)
+    float fireballDoubleChance = 0.15f;   // chance an event launches a pair of fireballs
+    float fireballDoubleGap = 0.6f;       // launch gap between the two fireballs (s)
+    float fireballGraceTime = 5.f;        // no fireballs for this long after entering the realm
+    float fireballWarningTime = 0.8f;     // telegraph shown before each launch (s)
+    float fireballSpeed = 480.f;          // travel speed (px/s)
+    float fireballSize = 20.f;            // visual radius of the ball (px)
+    float fireballPlayerDamage = 30.f;    // large hit vs. normal enemy damage
+    float fireballEnemyDamage = 3.f;      // regular-enemy damage on touch
+    float fireballBossDamage = 0.f;       // boss takes a small amount or none
+    float fireballShakeAmount = 10.f;     // launch shake intensity
+
+    // Enemy Huts (solid world obstacles in both realms)
+    float hutHalfWidth = 22.f;        // half-width of a hut footprint used for drawing (px)
+    float hutHalfHeight = 15.f;       // half-height of a hut footprint used for drawing (px)
+    float hutCollisionRadius = 20.f;  // collision radius (smaller than the sprite, feels fair)
+    int hutsPerRealm = 3;             // fixed number of hand-placed huts per realm
+
+    // Wizard Enemies (spawned by huts over time; ranged attack comes later)
+    float wizardSpawnMinInterval = 4.f; // hut spawn interval random min (s)
+    float wizardSpawnMaxInterval = 5.f; // hut spawn interval random max (s)
+    float wizardSpawnGap = 1.2f;        // minimum gap between any two wizard spawns (s)
+    float wizardStartOffsetMax = 2.f;   // random initial delay per hut (s)
+    float wizardGraceTime = 3.f;        // no spawns for this long after entering a realm
+    int wizardMaxAlive = 8;             // max wizards alive at once (pool/cap)
+    float wizardHealth = 2.f;           // low: one or two sword hits kill it
+    float wizardSpeed = 105.f;          // walk speed toward the player (px/s)
+    float wizardPreferredDist = 260.f;  // stops and faces the player at this distance
+    float wizardMinDist = 140.f;        // backs away slowly when the player comes closer
+    float wizardEmergeTime = 0.5f;      // fade/scale-in at the door (can't be hit/move)
+    int wizardScoreValue = 5;           // flat score per kill (no combo contribution)
+    float wizardFadeTime = 0.35f;       // victory fade-out duration (s)
+
+    // Wizard ranged attack (mini fireballs)
+    float wizardAttackMinCd = 2.5f;     // min random delay between a wizard's shots (s)
+    float wizardAttackMaxCd = 4.0f;     // max random delay between a wizard's shots (s)
+    float wizardTelegraph = 0.5f;       // wind-up before the shot is fired (s)
+    int wizardMaxShooting = 3;          // max wizards charging a shot at any moment
+    float wizardShotGap = 0.8f;         // min gap between any two mini fireball launches (s)
+    float miniFireballSpeed = 300.f;    // travel speed (px/s)
+    float miniFireballSize = 5.f;       // visual radius of the mini ball (px)
+    float miniFireballDamage = 8.f;     // damage on player hit
+    float miniFireballShake = 4.f;      // screen shake on player hit
+    bool miniBlockOnObstacles = true;   // mini fireballs burst on huts/trees/etc.
 };
 
 inline constexpr Balance balance{};
@@ -132,6 +204,16 @@ struct Settings
 inline float screenShakeScale(int mode)
 {
     return (mode == 0) ? 1.0f : (mode == 1) ? 0.4f : 0.0f;
+}
+
+inline sf::Color colorLerp(const sf::Color& a, const sf::Color& b, float t)
+{
+    t = std::clamp(t, 0.f, 1.f);
+    return sf::Color(
+        static_cast<std::uint8_t>(a.r + (b.r - a.r) * t),
+        static_cast<std::uint8_t>(a.g + (b.g - a.g) * t),
+        static_cast<std::uint8_t>(a.b + (b.b - a.b) * t),
+        static_cast<std::uint8_t>(a.a + (b.a - a.a) * t));
 }
 
 // Helper function to draw smooth radial light glow using SFML TriangleFan
@@ -460,6 +542,49 @@ struct Shockwave
     bool hitPlayer;
 };
 
+// Giant Fireball Hazard (Mountain Peaks) - fixed pool
+enum class FireballState { Inactive, Warn, Flying };
+
+struct Fireball
+{
+    FireballState state = FireballState::Inactive;
+    int id = -1;                    // unique id so each fireball hits each enemy at most once
+    sf::Vector2f pos{0.f, 0.f};
+    sf::Vector2f dir{1.f, 0.f};
+    sf::Vector2f aimPos{0.f, 0.f};  // player position the ball was aimed at (telegraph target)
+    float warnDelay = 0.f;          // seconds before this ball's telegraph begins
+    float warnTimer = 0.f;          // counts down once the telegraph has started
+    float warnTime = 0.8f;          // total telegraph duration
+    float speed = 480.f;
+    float emberAccum = 0.f;         // trail ember spawn accumulator
+    bool perfectDodged = false;     // avoids repeated perfect-dodge awards from one ball
+    bool mini = false;              // true = wizard mini fireball (shares this pool)
+};
+
+// Fixed pool for fireball embers / sparks / smoke puffs
+struct FireParticle
+{
+    bool active = false;
+    int kind = 0;                   // 0 = ember/spark, 1 = smoke puff
+    sf::Vector2f pos{0.f, 0.f};
+    sf::Vector2f vel{0.f, 0.f};
+    sf::Color color{255, 200, 80, 255};
+    float size = 3.f;
+    float life = 0.f;
+    float maxLife = 0.5f;
+};
+
+// Expanding shock ring for the fireball launch flash / impact explosion
+struct ExplosionRing
+{
+    bool active = false;
+    sf::Vector2f pos{0.f, 0.f};
+    float radius = 10.f;
+    float maxRadius = 100.f;
+    float life = 0.f;
+    float maxLife = 0.5f;
+};
+
 // Floating Damage Number
 struct FloatingNumber
 {
@@ -504,6 +629,30 @@ struct Enemy
     float phaseTextTimer = 0.f;
     bool pendingSecondRing = false;
     float secondRingTimer = 0.f;
+    float animPhase = 0.f;               // visual walk-cycle phase (radians)
+    float animMove = 0.f;                // 0..1 eased walk-pose blend (visual only)
+    int fireballDamageId = -1;           // id of the last fireball that damaged this enemy
+};
+
+// Wizard Enemy (spawned by huts; ranged attack comes in a later step)
+struct Wizard
+{
+    bool active = false;
+    RealmLocation realm = RealmLocation::ForestValley;
+    sf::Vector2f pos{0.f, 0.f};
+    sf::Vector2f facing{0.f, 1.f};
+    float health = 0.f;
+    float maxHealth = 0.f;
+    float speed = 0.f;
+    float hitTimer = 0.f;
+    float emergeTimer = 0.f; // >0: fading/scaling in at the door; can't be hit or move
+    bool fading = false;     // victory fade-out (no score)
+    float fadeTimer = 0.f;
+    float animPhase = 0.f;   // visual walk-bob phase
+    float animMove = 0.f;    // 0..1 eased walk-pose blend (visual only)
+    float attackTimer = 0.f;     // counts down to the next shot attempt
+    float telegraphTimer = 0.f;  // >0: charging a shot (holds position)
+    sf::Vector2f aimDir{0.f, 1.f}; // direction the current shot will fly
 };
 
 // Crystal with realm location
@@ -526,6 +675,15 @@ struct Boulder
 {
     sf::Vector2f pos;
     float radius;
+};
+
+// Enemy Hut (solid world obstacle in both realms)
+struct Hut
+{
+    sf::Vector2f pos;     // ground-center of the hut
+    float size;           // half-width used for drawing scale and the collision footprint
+    RealmLocation realm;
+    sf::Vector2f doorPos; // where a character could later come out (data only for now)
 };
 
 struct Mushroom
@@ -559,7 +717,8 @@ sf::Vector2f resolveObstacleCollision(
     RealmLocation realm,
     const std::vector<Boulder>& forestBoulders,
     const std::vector<Tree>& forestTrees,
-    const std::vector<Boulder>& mountainCrags)
+    const std::vector<Boulder>& mountainCrags,
+    const std::vector<Hut>& huts)
 {
     if (realm == RealmLocation::ForestValley)
     {
@@ -599,9 +758,73 @@ sf::Vector2f resolveObstacleCollision(
         if (pos.y < 210.f) pos.y = 210.f;
     }
 
+    // Enemy Huts are solid world obstacles in both realms.
+    for (const auto& h : huts)
+    {
+        if (h.realm != realm) continue;
+        float dx = pos.x - h.pos.x;
+        float dy = pos.y - h.pos.y;
+        float dist = std::sqrt(dx * dx + dy * dy);
+        float minDist = balance.hutCollisionRadius + bodyRadius;
+        if (dist < minDist && dist > 0.f)
+            pos = h.pos + sf::Vector2f(dx / dist * minDist, dy / dist * minDist);
+    }
+
     pos.x = std::clamp(pos.x, 30.f, 1070.f);
     pos.y = std::clamp(pos.y, 30.f, 720.f);
     return pos;
+}
+
+// Returns true if a moving circle overlaps any solid obstacle in the given
+// realm (boulders, trees, crags or huts). Used so mini fireballs burst on
+// impact. No allocations.
+bool circleHitsObstacle(
+    sf::Vector2f pos,
+    float radius,
+    RealmLocation realm,
+    const std::vector<Boulder>& forestBoulders,
+    const std::vector<Tree>& forestTrees,
+    const std::vector<Boulder>& mountainCrags,
+    const std::vector<Hut>& huts)
+{
+    if (realm == RealmLocation::ForestValley)
+    {
+        for (const auto& b : forestBoulders)
+        {
+            float dx = pos.x - b.pos.x;
+            float dy = pos.y - b.pos.y;
+            float m = b.radius + radius;
+            if (dx * dx + dy * dy < m * m) return true;
+        }
+        for (const auto& t : forestTrees)
+        {
+            float dx = pos.x - t.pos.x;
+            float dy = pos.y - (t.pos.y + 20.f);
+            float m = 22.f * t.scale + radius;
+            if (m < 2.f) m = 2.f;
+            if (dx * dx + dy * dy < m * m) return true;
+        }
+    }
+    else
+    {
+        for (const auto& c : mountainCrags)
+        {
+            float dx = pos.x - c.pos.x;
+            float dy = pos.y - c.pos.y;
+            float m = c.radius + radius;
+            if (dx * dx + dy * dy < m * m) return true;
+        }
+    }
+
+    for (const auto& h : huts)
+    {
+        if (h.realm != realm) continue;
+        float dx = pos.x - h.pos.x;
+        float dy = pos.y - h.pos.y;
+        float m = balance.hutCollisionRadius + radius;
+        if (dx * dx + dy * dy < m * m) return true;
+    }
+    return false;
 }
 
 // Move an enemy toward the player with obstacle sliding. If the direct move
@@ -616,7 +839,8 @@ void moveEnemyWithCollision(
     float bodyRadius,
     const std::vector<Boulder>& forestBoulders,
     const std::vector<Tree>& forestTrees,
-    const std::vector<Boulder>& mountainCrags)
+    const std::vector<Boulder>& mountainCrags,
+    const std::vector<Hut>& huts)
 {
     if (dt <= 0.f) return;
 
@@ -659,7 +883,7 @@ void moveEnemyWithCollision(
     sf::Vector2f step = desired * dt;
 
     sf::Vector2f full = resolveObstacleCollision(start + step, bodyRadius, realm,
-                                                 forestBoulders, forestTrees, mountainCrags);
+                                                 forestBoulders, forestTrees, mountainCrags, huts);
     sf::Vector2f best = full;
     float bestProgress = (full.x - start.x) * desired.x + (full.y - start.y) * desired.y;
 
@@ -669,9 +893,9 @@ void moveEnemyWithCollision(
     if (resX * resX + resY * resY > 0.0001f)
     {
         sf::Vector2f xCand = resolveObstacleCollision(start + sf::Vector2f(step.x, 0.f), bodyRadius, realm,
-                                                      forestBoulders, forestTrees, mountainCrags);
+                                                      forestBoulders, forestTrees, mountainCrags, huts);
         sf::Vector2f yCand = resolveObstacleCollision(start + sf::Vector2f(0.f, step.y), bodyRadius, realm,
-                                                      forestBoulders, forestTrees, mountainCrags);
+                                                      forestBoulders, forestTrees, mountainCrags, huts);
 
         float xProg = (xCand.x - start.x) * desired.x + (xCand.y - start.y) * desired.y;
         float yProg = (yCand.x - start.x) * desired.x + (yCand.y - start.y) * desired.y;
@@ -732,7 +956,12 @@ void generateProceduralAudio(
     sf::SoundBuffer& slamBuf,
     sf::SoundBuffer& teleportBuf,
     sf::SoundBuffer& bgmBuf,
-    sf::SoundBuffer& warnBuf
+    sf::SoundBuffer& warnBuf,
+    sf::SoundBuffer& fbWarnBuf,
+    sf::SoundBuffer& fbWhooshBuf,
+    sf::SoundBuffer& fbBoomBuf,
+    sf::SoundBuffer& miniWarnBuf,
+    sf::SoundBuffer& miniShotBuf
 ) {
     const unsigned int sampleRate = 44100;
 
@@ -837,6 +1066,80 @@ void generateProceduralAudio(
             s[i] = static_cast<std::int16_t>(v * env * 22000.f);
         }
         (void)warnBuf.loadFromSamples(s.data(), s.size(), 1, sampleRate, { sf::SoundChannel::Mono });
+    }
+
+    // 9. Fireball Warning (low rumbling tone that rises in pitch)
+    {
+        const std::uint32_t n = (std::uint32_t)(sampleRate * 0.8f);
+        std::vector<std::int16_t> s(n);
+        for (std::uint32_t i = 0; i < n; ++i) {
+            float t = (float)i / sampleRate;
+            float freq = 72.f + t * 130.f;
+            float noise = ((rand() % 200 - 100) / 100.f);
+            float v = std::sin(2.f * 3.14159f * freq * t) * 0.55f + noise * 0.45f;
+            float env = 0.35f + 0.65f * (float)i / n;
+            s[i] = static_cast<std::int16_t>(v * env * 16000.f);
+        }
+        (void)fbWarnBuf.loadFromSamples(s.data(), s.size(), 1, sampleRate, { sf::SoundChannel::Mono });
+    }
+
+    // 10. Fireball Launch Whoosh (roaring filtered noise with a pitch sweep)
+    {
+        const std::uint32_t n = (std::uint32_t)(sampleRate * 0.45f);
+        std::vector<std::int16_t> s(n);
+        for (std::uint32_t i = 0; i < n; ++i) {
+            float t = (float)i / sampleRate;
+            float env = std::sin((float)i / n * 3.14159f);
+            float noise = ((rand() % 200 - 100) / 100.f);
+            float freq = 300.f + t * 1600.f;
+            float v = std::sin(2.f * 3.14159f * freq * t) * 0.35f + noise * 0.60f;
+            s[i] = static_cast<std::int16_t>(v * env * 20000.f);
+        }
+        (void)fbWhooshBuf.loadFromSamples(s.data(), s.size(), 1, sampleRate, { sf::SoundChannel::Mono });
+    }
+
+    // 11. Fireball Impact (deep boom with a noise tail)
+    {
+        const std::uint32_t n = (std::uint32_t)(sampleRate * 1.0f);
+        std::vector<std::int16_t> s(n);
+        for (std::uint32_t i = 0; i < n; ++i) {
+            float t = (float)i / sampleRate;
+            float env = std::exp(-t * 3.5f);
+            float noise = ((rand() % 200 - 100) / 100.f) * std::exp(-t * 12.f);
+            float v = std::sin(2.f * 3.14159f * (70.f - t * 30.f) * t) * 0.8f + noise * 0.5f;
+            s[i] = static_cast<std::int16_t>(v * env * 26000.f);
+        }
+        (void)fbBoomBuf.loadFromSamples(s.data(), s.size(), 1, sampleRate, { sf::SoundChannel::Mono });
+    }
+
+    // 12. Wizard mini-fireball Warning (short, soft magical chirp)
+    {
+        const std::uint32_t n = (std::uint32_t)(sampleRate * 0.3f);
+        std::vector<std::int16_t> s(n);
+        for (std::uint32_t i = 0; i < n; ++i) {
+            float t = (float)i / sampleRate;
+            float env = std::sin((float)i / n * 3.14159f);
+            float freq = 680.f + std::sin(t * 40.f) * 90.f;
+            float v = std::sin(2.f * 3.14159f * freq * t) * 0.7f
+                    + std::sin(2.f * 3.14159f * freq * 1.5f * t) * 0.3f;
+            s[i] = static_cast<std::int16_t>(v * env * 11000.f);
+        }
+        (void)miniWarnBuf.loadFromSamples(s.data(), s.size(), 1, sampleRate, { sf::SoundChannel::Mono });
+    }
+
+    // 13. Wizard mini-fireball Launch (soft, short whoosh)
+    {
+        const std::uint32_t n = (std::uint32_t)(sampleRate * 0.4f);
+        std::vector<std::int16_t> s(n);
+        for (std::uint32_t i = 0; i < n; ++i) {
+            float t = (float)i / sampleRate;
+            float env = std::sin((float)i / n * 3.14159f);
+            float noise = ((rand() % 200 - 100) / 100.f);
+            float freq = 260.f + t * 900.f;
+            float v = std::sin(2.f * 3.14159f * freq * t) * 0.30f + noise * 0.45f;
+            s[i] = static_cast<std::int16_t>(v * env * 13000.f);
+        }
+        (void)miniShotBuf.loadFromSamples(s.data(), s.size(), 1, sampleRate, { sf::SoundChannel::Mono });
     }
 }
 
@@ -1123,8 +1426,10 @@ int main()
     }
 
     // Audio Setup
-    sf::SoundBuffer swingBuf, hitBuf, crystalBuf, dashBuf, slamBuf, teleportBuf, bgmBuf, warnBuf;
-    generateProceduralAudio(swingBuf, hitBuf, crystalBuf, dashBuf, slamBuf, teleportBuf, bgmBuf, warnBuf);
+    sf::SoundBuffer swingBuf, hitBuf, crystalBuf, dashBuf, slamBuf, teleportBuf, bgmBuf, warnBuf,
+                     fbWarnBuf, fbWhooshBuf, fbBoomBuf, miniWarnBuf, miniShotBuf;
+    generateProceduralAudio(swingBuf, hitBuf, crystalBuf, dashBuf, slamBuf, teleportBuf, bgmBuf, warnBuf,
+                            fbWarnBuf, fbWhooshBuf, fbBoomBuf, miniWarnBuf, miniShotBuf);
 
     sf::Sound swingSound(swingBuf);
     sf::Sound hitSound(hitBuf);
@@ -1134,6 +1439,11 @@ int main()
     sf::Sound teleportSound(teleportBuf);
     sf::Sound warnSound(warnBuf);
     warnSound.setVolume(55.f);
+    sf::Sound fbWarnSound(fbWarnBuf);
+    sf::Sound fbWhooshSound(fbWhooshBuf);
+    sf::Sound fbBoomSound(fbBoomBuf);
+    sf::Sound miniWarnSound(miniWarnBuf);
+    sf::Sound miniShotSound(miniShotBuf);
     sf::Sound bgmSound(bgmBuf);
     // Ambient background drone disabled by user request
     // bgmSound.setLooping(true);
@@ -1223,6 +1533,11 @@ int main()
         slamSound.setVolume(v);
         teleportSound.setVolume(v);
         warnSound.setVolume(0.55f * v);
+        fbWarnSound.setVolume(0.55f * v);
+        fbWhooshSound.setVolume(0.8f * v);
+        fbBoomSound.setVolume(v);
+        miniWarnSound.setVolume(0.5f * v);
+        miniShotSound.setVolume(0.55f * v);
         bgmSound.setVolume(v);
     };
     applyVolume();
@@ -1231,8 +1546,42 @@ int main()
     float totalTime = 0.f;
 
     // Game State & User Profile
-    GameState gameState = GameState::LoginScreen;
-    std::string playerName = "Hero";
+    GameState gameState = GameState::HomeMenu;
+    std::string playerName = (!matchHistory.empty() && !matchHistory.back().heroName.empty())
+                             ? matchHistory.back().heroName : "Hero";
+    int homeSelection = 0;
+
+    // Home menu button geometry (5 stacked buttons) and shared nav helpers.
+    auto homeButtonRect = [](int i) {
+        return sf::FloatRect({380.f, 300.f + static_cast<float>(i) * 58.f}, {340.f, 46.f});
+    };
+    auto placeholderBackRect = []() {
+        return sf::FloatRect({380.f, 470.f}, {340.f, 50.f});
+    };
+    auto confirmHomeSelection = [&]() {
+        if (homeSelection == 0)
+        {
+            gameState = GameState::LoginScreen; // Play -> existing hero-name login
+        }
+        else if (homeSelection == 1)
+        {
+            showHistoryDashboard = true; // Hall of Heroes
+        }
+        else if (homeSelection == 2)
+        {
+            gameState = GameState::Settings;
+        }
+        else if (homeSelection == 3)
+        {
+            gameState = GameState::HowToPlay;
+        }
+        else if (homeSelection == 4)
+        {
+            bgmSound.stop();
+            window.close();
+            std::exit(0); // Quit
+        }
+    };
 
     // Location / Realm System (Forest Valley vs Craggy Mountain Peaks)
     RealmLocation currentRealm = RealmLocation::ForestValley;
@@ -1379,6 +1728,19 @@ int main()
     sf::Vector2f facing(1.f, 0.f);
     sf::Vector2f playerPos(450.f, 400.f);
 
+    // Hero visual animation state (kept across frames; visuals only)
+    float heroWalkPhase = 0.f;   // advances with movement; drives limb swing (radians)
+    float heroWalkAmount = 0.f;  // 0..1 eased blend of the walk pose
+
+    // Hero sword-trail buffer (fixed size, reused every frame; visuals only)
+    constexpr int heroTrailMax = 12;
+    std::array<sf::Vector2f, heroTrailMax> heroTrailBase{};
+    std::array<sf::Vector2f, heroTrailMax> heroTrailTip{};
+    std::array<float, heroTrailMax> heroTrailTime{};
+    int heroTrailHead = 0;
+    sf::VertexArray heroTrailStrip(sf::PrimitiveType::TriangleStrip, heroTrailMax * 2);
+    heroTrailTime.fill(-1.f);
+
     // Crystals across both realms
     std::vector<Crystal> crystals = {
         {{350.f, 250.f}, RealmLocation::ForestValley, false, sf::Color(100, 240, 255)},
@@ -1431,6 +1793,18 @@ int main()
         {{180.f, 500.f}, 28.f}, {{920.f, 500.f}, 28.f}
     };
 
+    // Enemy Huts (solid world obstacles, fixed hand-picked placements)
+    std::vector<Hut> huts = {
+        // Mystic Forest Valley: small wooden cottages
+        {{170.f, 300.f}, balance.hutHalfWidth, RealmLocation::ForestValley, {170.f, 316.f}},
+        {{430.f, 655.f}, balance.hutHalfWidth, RealmLocation::ForestValley, {430.f, 671.f}},
+        {{905.f, 205.f}, balance.hutHalfWidth, RealmLocation::ForestValley, {905.f, 221.f}},
+        // Craggy Mountain Peaks: stone huts
+        {{150.f, 280.f}, balance.hutHalfWidth, RealmLocation::MountainPeaks, {150.f, 296.f}},
+        {{950.f, 240.f}, balance.hutHalfWidth, RealmLocation::MountainPeaks, {950.f, 256.f}},
+        {{500.f, 560.f}, balance.hutHalfWidth, RealmLocation::MountainPeaks, {500.f, 576.f}}
+    };
+
     // Weather Particles
     std::vector<Particle> weatherMotes;
     std::mt19937 rng(1337);
@@ -1450,6 +1824,52 @@ int main()
     std::vector<Particle> fxParticles;
     std::vector<GhostTrail> ghostTrails;
     std::vector<Shockwave> shockwaves;
+
+    // Fireball pool (fixed-size; zero per-frame heap allocations). Shared by the
+    // giant Mountain hazard and the wizards' mini fireballs.
+    static constexpr int MAX_FIREBALLS = 16;
+    std::array<Fireball, MAX_FIREBALLS> fireballs{};
+    static constexpr int MAX_FIRE_PARTICLES = 64;
+    std::array<FireParticle, MAX_FIRE_PARTICLES> fireParticles{};
+    static constexpr int MAX_EXPLOSION_RINGS = 8;
+    std::array<ExplosionRing, MAX_EXPLOSION_RINGS> explosionRings{};
+    int fireballIdCounter = 1;
+    float fireballCountdown = balance.fireballGraceTime; // grace period before the first event
+    std::uniform_real_distribution<float> fireIntervalDist(balance.fireballMinInterval, balance.fireballMaxInterval);
+    std::uniform_real_distribution<float> fireDoubleDist(0.f, 1.f);
+    std::uniform_real_distribution<float> fireSpawnXDist(140.f, 960.f);
+
+    // Wizard enemy pool (fixed-size; cap == balance.wizardMaxAlive, max 8)
+    static constexpr int MAX_WIZARDS = 8;
+    std::array<Wizard, MAX_WIZARDS> wizards{};
+    static constexpr int MAX_HUTS = 6; // matches the hand-placed hut list
+    std::array<float, MAX_HUTS> wizardHutTimers{};
+    std::uniform_real_distribution<float> wizardSpawnIntervalDist(balance.wizardSpawnMinInterval, balance.wizardSpawnMaxInterval);
+    std::uniform_real_distribution<float> wizardStartOffsetDist(0.f, balance.wizardStartOffsetMax);
+    std::uniform_real_distribution<float> wizardAttackCdDist(balance.wizardAttackMinCd, balance.wizardAttackMaxCd);
+    const int wizardCap = std::min<int>(balance.wizardMaxAlive, MAX_WIZARDS);
+    float wizardGlobalGapTimer = 0.f;
+    float wizardShotGapTimer = 0.f; // min gap between any two mini fireball launches
+
+    // Clears any in-flight mini fireballs (giant Mountain balls are untouched).
+    auto clearMiniFireballs = [&]() {
+        for (auto& fb : fireballs)
+            if (fb.mini) fb.state = FireballState::Inactive;
+    };
+
+    auto resetWizardSpawnTimers = [&]() {
+        for (auto& t : wizardHutTimers)
+            t = balance.wizardGraceTime + wizardStartOffsetDist(rng);
+        wizardGlobalGapTimer = 0.f;
+        wizardShotGapTimer = 0.f;
+    };
+    resetWizardSpawnTimers();
+
+    auto activeWizardCount = [&]() {
+        int c = 0;
+        for (const auto& w : wizards) if (w.active) ++c;
+        return c;
+    };
 
     // Fixed-size pool for floating damage numbers (zero per-frame allocations)
     static constexpr size_t MAX_FLOATING_NUMBERS = 64;
@@ -1521,6 +1941,84 @@ int main()
                 0.3f + float(rand() % 30) / 100.f
             });
         }
+    };
+
+    // Fixed-pool fire particle (ember/spark or smoke puff); no per-frame heap allocation.
+    auto spawnFireParticle = [&](sf::Vector2f pos, sf::Vector2f vel, sf::Color color, float size, float maxLife, int kind) {
+        for (auto& fp : fireParticles)
+        {
+            if (!fp.active)
+            {
+                fp.active = true;
+                fp.kind = kind;
+                fp.pos = pos;
+                fp.vel = vel;
+                fp.color = color;
+                fp.size = size;
+                fp.life = 0.f;
+                fp.maxLife = maxLife;
+                break;
+            }
+        }
+    };
+
+    // Fireball explosion: flash ring + flying sparks + a short-lived smoke cloud.
+    auto spawnExplosion = [&](sf::Vector2f pos, float scale) {
+        fbBoomSound.play();
+        for (auto& r : explosionRings)
+        {
+            if (!r.active)
+            {
+                r.active = true;
+                r.pos = pos;
+                r.radius = 10.f * scale;
+                r.maxRadius = 105.f * scale;
+                r.life = 0.f;
+                r.maxLife = 0.5f;
+                break;
+            }
+        }
+        for (int i = 0; i < 14; ++i)
+        {
+            float a = (float(rand() % 360) * 3.14159f) / 180.f;
+            float sp = 90.f + float(rand() % 220);
+            sf::Color c(255, 180 + rand() % 75, 60 + rand() % 70);
+            spawnFireParticle(pos, {std::cos(a) * sp, std::sin(a) * sp - 40.f}, c,
+                              2.5f + float(rand() % 3), 0.3f + float(rand() % 30) / 100.f, 0);
+        }
+        for (int i = 0; i < 6; ++i)
+        {
+            float a = (float(rand() % 360) * 3.14159f) / 180.f;
+            float sp = 15.f + float(rand() % 45);
+            spawnFireParticle(pos, {std::cos(a) * sp, -12.f - float(rand() % 45)}, sf::Color(85, 72, 64),
+                              8.f + float(rand() % 6), 0.7f + float(rand() % 60) / 100.f, 1);
+        }
+    };
+
+    // Fireball launch: whoosh + expanding ring + sparks + screen shake.
+    auto spawnLaunchFx = [&](sf::Vector2f pos) {
+        fbWhooshSound.play();
+        for (auto& r : explosionRings)
+        {
+            if (!r.active)
+            {
+                r.active = true;
+                r.pos = pos;
+                r.radius = 6.f;
+                r.maxRadius = 62.f;
+                r.life = 0.f;
+                r.maxLife = 0.3f;
+                break;
+            }
+        }
+        for (int i = 0; i < 8; ++i)
+        {
+            float a = (float(rand() % 360) * 3.14159f) / 180.f;
+            float sp = 120.f + float(rand() % 160);
+            spawnFireParticle(pos, {std::cos(a) * sp, std::sin(a) * sp}, sf::Color(255, 190 + rand() % 65, 60),
+                              2.f + float(rand() % 3), 0.25f + float(rand() % 20) / 100.f, 0);
+        }
+        addScreenShake(balance.fireballShakeAmount, 0.22f);
     };
 
     auto performAttack = [&]() {
@@ -1688,6 +2186,14 @@ int main()
                         paused = true;
                         pauseSelection = 0;
                     }
+                    else if (gameState == GameState::LoginScreen)
+                    {
+                        gameState = GameState::HomeMenu; // Esc backs out of the login screen
+                    }
+                    else if (gameState == GameState::Settings || gameState == GameState::HowToPlay)
+                    {
+                        gameState = GameState::HomeMenu; // Esc backs out of the placeholders
+                    }
                     else
                     {
                         bgmSound.stop();
@@ -1782,6 +2288,28 @@ int main()
                 else if (showHistoryDashboard)
                 {
                     // While dashboard is active, suppress other key interactions
+                }
+                else if (gameState == GameState::HomeMenu)
+                {
+                    if (key->code == sf::Keyboard::Key::Up || key->code == sf::Keyboard::Key::W)
+                    {
+                        homeSelection = (homeSelection + 4) % 5;
+                    }
+                    else if (key->code == sf::Keyboard::Key::Down || key->code == sf::Keyboard::Key::S)
+                    {
+                        homeSelection = (homeSelection + 1) % 5;
+                    }
+                    else if (key->code == sf::Keyboard::Key::Enter || key->code == sf::Keyboard::Key::Space)
+                    {
+                        confirmHomeSelection();
+                    }
+                }
+                else if (gameState == GameState::Settings || gameState == GameState::HowToPlay)
+                {
+                    if (key->code == sf::Keyboard::Key::Enter || key->code == sf::Keyboard::Key::Space)
+                    {
+                        gameState = GameState::HomeMenu; // Back
+                    }
                 }
                 else if ((gameOver || victory) &&
                          (key->code == sf::Keyboard::Key::Enter || key->code == sf::Keyboard::Key::Space))
@@ -1896,6 +2424,10 @@ int main()
                             e.secondRingTimer = 0.f;
                         }
 
+                        for (auto& w : wizards) w.active = false;
+                        clearMiniFireballs();
+                        resetWizardSpawnTimers();
+
                         shockwaves.clear();
                         ghostTrails.clear();
                         for (auto& fn : floatingNumbers) fn.active = false;
@@ -1904,7 +2436,7 @@ int main()
                         clock.restart();
                     }
 
-                    // Return to Login Screen on 'L'
+                    // Return to the Home menu on 'L' (Logout after a run)
                     if (key->code == sf::Keyboard::Key::L && (gameOver || victory))
                     {
                         health = 100.f;
@@ -1977,12 +2509,16 @@ int main()
                             e.secondRingTimer = 0.f;
                         }
 
+                        for (auto& w : wizards) w.active = false;
+                        clearMiniFireballs();
+                        resetWizardSpawnTimers();
+
                         shockwaves.clear();
                         ghostTrails.clear();
                         for (auto& fn : floatingNumbers) fn.active = false;
                         for (auto& dh : damageHistory) { dh.timestamp = -100.f; dh.amount = 0.f; }
                         damageHistoryHead = 0;
-                        gameState = GameState::LoginScreen;
+                        gameState = GameState::HomeMenu;
                         clock.restart();
                     }
                 }
@@ -2048,6 +2584,26 @@ int main()
                             showHistoryDashboard = true;
                         }
                     }
+                    else if (gameState == GameState::HomeMenu)
+                    {
+                        // Left click confirms the button under the cursor.
+                        for (int i = 0; i < 5; ++i)
+                        {
+                            if (homeButtonRect(i).contains(mousePos))
+                            {
+                                homeSelection = i;
+                                confirmHomeSelection();
+                                break;
+                            }
+                        }
+                    }
+                    else if (gameState == GameState::Settings || gameState == GameState::HowToPlay)
+                    {
+                        if (placeholderBackRect().contains(mousePos))
+                        {
+                            gameState = GameState::HomeMenu; // Back
+                        }
+                    }
                 }
             }
         }
@@ -2076,6 +2632,188 @@ int main()
         {
             hitstopTimer = std::max(0.f, hitstopTimer - dt);
             dt = 0.f;
+        }
+
+        // ===============================================
+        // HOME MENU RENDERING
+        // ===============================================
+        if (gameState == GameState::HomeMenu)
+        {
+            // Ambient particles floating smoothly (shared with the login screen)
+            for (auto& ff : weatherMotes)
+            {
+                ff.pos += ff.vel * dt;
+                ff.pos.x += std::sin(totalTime * 2.f + ff.pos.y) * 12.f * dt;
+                ff.pos.y -= 25.f * dt;
+                if (ff.pos.y < 0.f) ff.pos.y = 750.f;
+                if (ff.pos.x < 0.f) ff.pos.x = 1100.f;
+                if (ff.pos.x > 1100.f) ff.pos.x = 0.f;
+            }
+
+            window.setView(window.getDefaultView());
+            window.clear(sf::Color(10, 14, 22));
+
+            drawMountainRidge(window, {200.f, 440.f}, 260.f, 310.f, sf::Color(22, 26, 42, 160), sf::Color(14, 16, 28, 160));
+            drawMountainRidge(window, {900.f, 420.f}, 280.f, 330.f, sf::Color(24, 28, 44, 160), sf::Color(15, 18, 30, 160));
+            drawMountainRidge(window, {550.f, 490.f}, 350.f, 260.f, sf::Color(18, 22, 36, 200), sf::Color(11, 14, 24, 200));
+
+            for (const auto& ff : weatherMotes)
+            {
+                sf::CircleShape dot(ff.size * 0.9f, 8);
+                dot.setFillColor(sf::Color(140, 230, 255, 140));
+                dot.setPosition(ff.pos);
+                window.draw(dot);
+            }
+
+            drawRadialGlow(window, {550.f, 360.f}, 400.f, sf::Color(0, 140, 220, 30));
+            drawRadialGlow(window, {550.f, 360.f}, 230.f, sf::Color(70, 200, 255, 25));
+
+            if (fontLoaded)
+            {
+                sf::Text title(font, "Shardfall", 40);
+                title.setFillColor(sf::Color(255, 222, 95));
+                sf::FloatRect tb = title.getLocalBounds();
+                title.setOrigin({tb.position.x + tb.size.x / 2.f, tb.position.y + tb.size.y / 2.f});
+                title.setPosition({550.f, 172.f});
+                window.draw(title);
+
+                sf::Text subtitle(font, "Realm of the Lost Crystals", 14);
+                subtitle.setFillColor(sf::Color(140, 230, 255));
+                sf::FloatRect sb = subtitle.getLocalBounds();
+                subtitle.setOrigin({sb.position.x + sb.size.x / 2.f, sb.position.y + sb.size.y / 2.f});
+                subtitle.setPosition({550.f, 214.f});
+                window.draw(subtitle);
+            }
+
+            const char* labels[5] = { "Play", "Hall of Heroes", "Settings", "How to Play", "Quit" };
+
+            // Mouse hover selects the button under the cursor.
+            sf::Vector2i pixelPos = sf::Mouse::getPosition(window);
+            sf::Vector2f mPos = window.mapPixelToCoords(pixelPos);
+            for (int i = 0; i < 5; ++i)
+            {
+                if (homeButtonRect(i).contains(mPos)) { homeSelection = i; break; }
+            }
+
+            for (int i = 0; i < 5; ++i)
+            {
+                bool sel = (i == homeSelection);
+                sf::FloatRect r = homeButtonRect(i);
+                float cx = r.position.x + r.size.x / 2.f;
+                float cy = r.position.y + r.size.y / 2.f;
+
+                if (sel)
+                    drawRadialGlow(window, {cx, cy}, 150.f, sf::Color(255, 205, 80, 55));
+
+                // Gold border + dark panel, matching the existing UI style.
+                drawRoundedRect(r, uiStyle.hudPanelCorner, sel ? uiStyle.hudPanelBorder : sf::Color(90, 100, 115, 210));
+                sf::FloatRect inner({r.position.x + 3.f, r.position.y + 3.f}, {r.size.x - 6.f, r.size.y - 6.f});
+                drawRoundedRect(inner, uiStyle.hudPanelCorner - 1.f, sel ? sf::Color(26, 34, 48, 250) : uiStyle.hudPanelBg);
+
+                if (fontLoaded)
+                {
+                    std::string label = (sel ? "> " : "") + std::string(labels[i]) + (sel ? " <" : "");
+                    sf::Text item(font, label, 20);
+                    item.setFillColor(sel ? sf::Color(255, 236, 150) : sf::Color(205, 220, 235));
+                    sf::FloatRect ib = item.getLocalBounds();
+                    item.setOrigin({ib.position.x + ib.size.x / 2.f, ib.position.y + ib.size.y / 2.f});
+                    item.setPosition({cx, cy});
+                    window.draw(item);
+                }
+            }
+
+            if (fontLoaded)
+            {
+                sf::Text best(font, "Best: " + std::to_string(highScore), 14);
+                best.setFillColor(sf::Color(255, 215, 105));
+                best.setPosition({24.f, 22.f});
+                window.draw(best);
+
+                sf::Text version(font, "v1.0", 12);
+                version.setFillColor(sf::Color(135, 160, 185, 180));
+                sf::FloatRect vb = version.getLocalBounds();
+                version.setPosition({1100.f - vb.size.x - 24.f, 750.f - vb.size.y - 34.f});
+                window.draw(version);
+
+                sf::Text hint(font, "Up/Down or W/S: navigate    Enter/Space or click: confirm", 11);
+                hint.setFillColor(sf::Color(165, 205, 230, 180));
+                sf::FloatRect hb = hint.getLocalBounds();
+                hint.setOrigin({hb.position.x + hb.size.x / 2.f, hb.position.y + hb.size.y / 2.f});
+                hint.setPosition({550.f, 618.f});
+                window.draw(hint);
+            }
+
+            if (showHistoryDashboard)
+            {
+                drawHistoryDashboard(window, font, fontLoaded, matchHistory, highScore, totalTime);
+            }
+
+            window.display();
+            continue;
+        }
+
+        // ===============================================
+        // PLACEHOLDER SCREENS (Settings / How to Play)
+        // ===============================================
+        if (gameState == GameState::Settings || gameState == GameState::HowToPlay)
+        {
+            window.setView(window.getDefaultView());
+            window.clear(sf::Color(10, 14, 22));
+
+            drawRadialGlow(window, {550.f, 340.f}, 380.f, sf::Color(0, 140, 220, 30));
+            drawRadialGlow(window, {550.f, 340.f}, 210.f, sf::Color(70, 200, 255, 25));
+
+            if (fontLoaded)
+            {
+                const char* titleStr = (gameState == GameState::Settings) ? "Settings" : "How to Play";
+                sf::Text title(font, titleStr, 34);
+                title.setFillColor(sf::Color(255, 222, 95));
+                sf::FloatRect tb = title.getLocalBounds();
+                title.setOrigin({tb.position.x + tb.size.x / 2.f, tb.position.y + tb.size.y / 2.f});
+                title.setPosition({550.f, 260.f});
+                window.draw(title);
+
+                sf::Text soon(font, "Coming soon", 20);
+                soon.setFillColor(sf::Color(180, 205, 230));
+                sf::FloatRect sob = soon.getLocalBounds();
+                soon.setOrigin({sob.position.x + sob.size.x / 2.f, sob.position.y + sob.size.y / 2.f});
+                soon.setPosition({550.f, 330.f});
+                window.draw(soon);
+            }
+
+            sf::Vector2i pixelPos = sf::Mouse::getPosition(window);
+            sf::Vector2f mPos = window.mapPixelToCoords(pixelPos);
+            sf::FloatRect backR = placeholderBackRect();
+            bool backHover = backR.contains(mPos);
+            float bcx = backR.position.x + backR.size.x / 2.f;
+            float bcy = backR.position.y + backR.size.y / 2.f;
+
+            if (backHover)
+                drawRadialGlow(window, {bcx, bcy}, 150.f, sf::Color(255, 205, 80, 55));
+
+            drawRoundedRect(backR, uiStyle.hudPanelCorner, backHover ? uiStyle.hudPanelBorder : sf::Color(90, 100, 115, 210));
+            sf::FloatRect backInner({backR.position.x + 3.f, backR.position.y + 3.f}, {backR.size.x - 6.f, backR.size.y - 6.f});
+            drawRoundedRect(backInner, uiStyle.hudPanelCorner - 1.f, backHover ? sf::Color(26, 34, 48, 250) : uiStyle.hudPanelBg);
+
+            if (fontLoaded)
+            {
+                sf::Text back(font, "Back", 20);
+                back.setFillColor(backHover ? sf::Color(255, 236, 150) : sf::Color(205, 220, 235));
+                sf::FloatRect bb = back.getLocalBounds();
+                back.setOrigin({bb.position.x + bb.size.x / 2.f, bb.position.y + bb.size.y / 2.f});
+                back.setPosition({bcx, bcy});
+                window.draw(back);
+
+                sf::Text hint(font, "Esc or click Back to return", 11);
+                hint.setFillColor(sf::Color(165, 205, 230, 180));
+                sf::FloatRect hb = hint.getLocalBounds();
+                hint.setOrigin({hb.position.x + hb.size.x / 2.f, hb.position.y + hb.size.y / 2.f});
+                hint.setPosition({550.f, 560.f});
+                window.draw(hint);
+            }
+
+            window.display();
+            continue;
         }
 
         // ===============================================
@@ -2449,6 +3187,27 @@ int main()
             }
         }
 
+        // Fireball embers, sparks & smoke (fixed pools)
+        for (auto& fp : fireParticles)
+        {
+            if (!fp.active) continue;
+            fp.life += dt;
+            fp.vel.x *= (1.f - 1.6f * dt);
+            fp.vel.y = fp.vel.y * (1.f - 1.2f * dt) + ((fp.kind == 1) ? -46.f : -28.f) * dt; // heat rise
+            fp.pos += fp.vel * dt;
+            if (fp.kind == 1) fp.size += 15.f * dt; // smoke puffs spread as they rise
+            if (fp.life >= fp.maxLife) fp.active = false;
+        }
+
+        // Fireball impact / launch shock rings
+        for (auto& r : explosionRings)
+        {
+            if (!r.active) continue;
+            r.life += dt;
+            r.radius += (r.maxRadius - r.radius) * std::min(1.f, dt * 6.f);
+            if (r.life >= r.maxLife) r.active = false;
+        }
+
         // Ghost Trails
         for (int i = (int)ghostTrails.size() - 1; i >= 0; --i)
         {
@@ -2562,7 +3321,7 @@ int main()
 
             // Realm Collisions (shared with enemy movement)
             nextPos = resolveObstacleCollision(nextPos, 18.f, currentRealm,
-                                               forestBoulders, forestTrees, mountainCrags);
+                                               forestBoulders, forestTrees, mountainCrags, huts);
             playerPos = nextPos;
 
             // ===============================================
@@ -2582,6 +3341,11 @@ int main()
                     currentRealm = RealmLocation::MountainPeaks;
                     playerPos = {170.f, 440.f};
                     spawnSparks(playerPos, sf::Color(255, 140, 60), 30);
+
+                    // Giant fireball hazard: start a fresh grace period, clear any leftovers.
+                    fireballCountdown = balance.fireballGraceTime;
+                    for (auto& fb : fireballs) fb.state = FireballState::Inactive;
+                    for (auto& e : enemies) e.fireballDamageId = -1;
                 }
                 else
                 {
@@ -2589,6 +3353,11 @@ int main()
                     playerPos = {940.f, 360.f};
                     spawnSparks(playerPos, sf::Color(100, 240, 255), 30);
                 }
+
+                // Wizards: remove any living wizards (no score) and reset hut spawn timers.
+                for (auto& w : wizards) w.active = false;
+                clearMiniFireballs(); // drop any in-flight mini fireballs with the wizards
+                resetWizardSpawnTimers();
 
                 // Re-open the gateway we just emerged from
                 initTeleportPod(teleportPod,
@@ -2670,7 +3439,7 @@ int main()
                             float kbDist = (enemy.type == EnemyType::Boss) ? 15.f : 45.f;
                             enemy.pos += sf::Vector2f(dx / dist * kbDist, dy / dist * kbDist);
                             enemy.pos = resolveObstacleCollision(enemy.pos, balance.enemyCollisionRadius, currentRealm,
-                                                                 forestBoulders, forestTrees, mountainCrags);
+                                                                 forestBoulders, forestTrees, mountainCrags, huts);
 
                             if (enemy.health <= 0.f)
                             {
@@ -2834,7 +3603,7 @@ int main()
                     else if (!bossFrozen)
                     {
                         moveEnemyWithCollision(enemy, playerPos, dt, currentRealm,
-                            balance.enemyCollisionRadius, forestBoulders, forestTrees, mountainCrags);
+                            balance.enemyCollisionRadius, forestBoulders, forestTrees, mountainCrags, huts);
                     }
                 }
                 else if (enemy.type == EnemyType::Charger)
@@ -2855,7 +3624,7 @@ int main()
 
                         sf::Vector2f next = enemy.pos + enemy.chargeDir * balance.chargerChargeSpeed * dt;
                         sf::Vector2f resolved = resolveObstacleCollision(next, balance.enemyCollisionRadius, currentRealm,
-                                                                         forestBoulders, forestTrees, mountainCrags);
+                                                                         forestBoulders, forestTrees, mountainCrags, huts);
                         float bx = resolved.x - next.x;
                         float by = resolved.y - next.y;
                         enemy.pos = resolved;
@@ -2925,7 +3694,7 @@ int main()
                         else
                         {
                             moveEnemyWithCollision(enemy, playerPos, dt, currentRealm,
-                                balance.enemyCollisionRadius, forestBoulders, forestTrees, mountainCrags);
+                                balance.enemyCollisionRadius, forestBoulders, forestTrees, mountainCrags, huts);
                         }
                     }
                 }
@@ -2933,7 +3702,7 @@ int main()
                 {
                     // Crawlers: chase the player while sliding around obstacles
                     moveEnemyWithCollision(enemy, playerPos, dt, currentRealm,
-                        balance.enemyCollisionRadius, forestBoulders, forestTrees, mountainCrags);
+                        balance.enemyCollisionRadius, forestBoulders, forestTrees, mountainCrags, huts);
 
                     if (dist < touchDist && dashIFrameTimer <= 0.f && damageTimer <= 0.f)
                     {
@@ -2964,6 +3733,195 @@ int main()
                 }
             }
 
+            // =============================================
+            // GIANT FIREBALL HAZARD (Craggy Mountain Peaks)
+            // =============================================
+            if (currentRealm == RealmLocation::MountainPeaks && portalCooldown <= 0.f)
+            {
+                // The interval timer only counts while in the Mountain realm; it pauses
+                // during the boss's phase-change invulnerability window.
+                bool bossInvuln = false;
+                for (const auto& foe : enemies)
+                {
+                    if (foe.type == EnemyType::Boss && foe.realm == currentRealm && foe.isAlive && foe.phaseInvulnTimer > 0.f)
+                    {
+                        bossInvuln = true;
+                        break;
+                    }
+                }
+
+                if (!bossInvuln)
+                {
+                    fireballCountdown -= dt;
+                    if (fireballCountdown <= 0.f)
+                    {
+                        // Re-roll the interval after every event.
+                        fireballCountdown = fireIntervalDist(rng);
+
+                        // Double fireball chance: two balls, staggered by the double gap.
+                        int target = (fireDoubleDist(rng) < balance.fireballDoubleChance) ? 2 : 1;
+                        int placed = 0;
+                        for (auto& fb : fireballs)
+                        {
+                            if (placed >= target) break;
+                            if (fb.state == FireballState::Inactive)
+                            {
+                                ++placed;
+                                fb.state = FireballState::Warn;
+                                fb.mini = false; // reclaim the slot from any former mini ball
+                                fb.id = fireballIdCounter++;
+                                fb.pos = {fireSpawnXDist(rng), 366.f}; // erupts from the magma gorge
+                                fb.dir = {0.f, 0.f};
+                                fb.aimPos = playerPos;
+                                fb.perfectDodged = false;
+                                fb.emberAccum = 0.f;
+                                fb.speed = balance.fireballSpeed;
+                                fb.warnTime = balance.fireballWarningTime;
+                                fb.warnTimer = 0.f;
+                                fb.warnDelay = (placed == 2) ? balance.fireballDoubleGap : 0.f;
+                            }
+                        }
+                    }
+                }
+
+                for (auto& fb : fireballs)
+                {
+                    if (fb.mini) continue; // wizard mini fireballs use their own update loop
+                    if (fb.state == FireballState::Warn)
+                    {
+                        if (fb.warnDelay > 0.f)
+                        {
+                            fb.warnDelay -= dt;
+                            if (fb.warnDelay <= 0.f)
+                            {
+                                fb.warnTimer = fb.warnTime;
+                                fbWarnSound.play();
+                            }
+                        }
+                        else
+                        {
+                            // Live telegraph: the path tracks the player until launch locks it.
+                            fb.aimPos = playerPos;
+                            sf::Vector2f toWarn = playerPos - fb.pos;
+                            float dlWarn = std::sqrt(toWarn.x * toWarn.x + toWarn.y * toWarn.y);
+                            fb.dir = (dlWarn > 0.0001f) ? sf::Vector2f(toWarn.x / dlWarn, toWarn.y / dlWarn)
+                                                        : sf::Vector2f(0.f, 1.f);
+
+                            fb.warnTimer -= dt;
+                            if (fb.warnTimer <= 0.f)
+                            {
+                                fb.state = FireballState::Flying;
+                                fb.aimPos = playerPos; // locked: aimed at the player's launch position
+                                spawnLaunchFx(fb.pos);
+                            }
+                        }
+                    }
+                    else if (fb.state == FireballState::Flying)
+                    {
+                        fb.pos += fb.dir * fb.speed * dt;
+
+                        // Continuous ember trail (fixed pool, no per-frame allocation).
+                        fb.emberAccum += dt * 55.f;
+                        while (fb.emberAccum >= 1.f)
+                        {
+                            fb.emberAccum -= 1.f;
+                            float spread = (float(rand() % 100 - 50) / 100.f);
+                            sf::Vector2f perp(-fb.dir.y, fb.dir.x);
+                            if (rand() % 5 == 0)
+                            {
+                                // Occasional smoke puff drifting behind the trail.
+                                spawnFireParticle(fb.pos + perp * spread * 16.f,
+                                                  -fb.dir * 18.f + sf::Vector2f(spread * 30.f, -18.f),
+                                                  sf::Color(90, 78, 70), 7.f + float(rand() % 6),
+                                                  0.8f + float(rand() % 50) / 100.f, 1);
+                            }
+                            else
+                            {
+                                sf::Vector2f spur = -fb.dir * (50.f + float(rand() % 70)) + perp * spread * 90.f;
+                                spawnFireParticle(fb.pos + perp * spread * 12.f,
+                                                  spur + sf::Vector2f(0.f, -55.f),
+                                                  sf::Color(255, 200 + rand() % 55, 60 + rand() % 80),
+                                                  2.f + float(rand() % 3),
+                                                  0.25f + float(rand() % 25) / 100.f, 0);
+                            }
+                        }
+
+                        // Vanishes (with an explosion) once it leaves the play area.
+                        if (fb.pos.x < -80.f || fb.pos.x > 1180.f || fb.pos.y < -80.f || fb.pos.y > 830.f)
+                        {
+                            sf::Vector2f exitPos(std::clamp(fb.pos.x, -80.f, 1180.f),
+                                                 std::clamp(fb.pos.y, -80.f, 830.f));
+                            spawnExplosion(exitPos, 0.9f);
+                            fb.state = FireballState::Inactive;
+                            continue;
+                        }
+
+                        // Damages enemies it touches; each fireball hits each enemy once.
+                        for (auto& enemy : enemies)
+                        {
+                            if (enemy.realm != currentRealm || !enemy.isAlive) continue;
+                            float ex = enemy.pos.x - fb.pos.x;
+                            float ey = enemy.pos.y - fb.pos.y;
+                            float ed = std::sqrt(ex * ex + ey * ey);
+                            float enemyHitR = balance.fireballSize + ((enemy.type == EnemyType::Boss) ? 42.f : 26.f);
+                            if (ed > enemyHitR) continue;
+                            if (enemy.type == EnemyType::Boss && enemy.phaseInvulnTimer > 0.f) continue;
+                            if (enemy.fireballDamageId == fb.id) continue;
+                            float dmg = (enemy.type == EnemyType::Boss) ? balance.fireballBossDamage
+                                                                        : balance.fireballEnemyDamage;
+                            if (dmg <= 0.f) continue;
+                            enemy.health = std::max(0.f, enemy.health - dmg);
+                            enemy.fireballDamageId = fb.id;
+                            spawnFloatingNumber(enemy.pos, static_cast<int>(std::round(dmg)), sf::Color(255, 140, 60));
+                            spawnSparks(enemy.pos, sf::Color(255, 150, 60), 10);
+                            if (enemy.health <= 0.f)
+                            {
+                                enemy.isAlive = false;
+                                spawnSparks(enemy.pos, sf::Color(255, 90, 40), 30);
+                                spawnExplosion(enemy.pos, 0.8f);
+                            }
+                        }
+
+                        // Hits the player (or is dashed through / escaped by a perfect dodge).
+                        float px = playerPos.x - fb.pos.x;
+                        float py = playerPos.y - fb.pos.y;
+                        float pd = std::sqrt(px * px + py * py);
+                        const float hitR = balance.fireballSize + 14.f;
+                        const float nearR = balance.fireballSize + 28.f;
+                        if (pd < nearR && dashIFrameTimer > 0.f)
+                        {
+                            // Dashed through or very near the fireball: perfect dodge.
+                            if (perfectDodgeCooldown <= 0.f && !fb.perfectDodged)
+                                awardPerfectDodge();
+                            fb.perfectDodged = true;
+                            if (pd < hitR) fb.state = FireballState::Inactive; // consumed by the dodge
+                        }
+                        else if (pd < hitR && damageTimer <= 0.f)
+                        {
+                            registerPlayerDamage(std::min(health, balance.fireballPlayerDamage));
+                            health = std::max(0.f, health - balance.fireballPlayerDamage);
+                            healBlockTimer = balance.healDelayAfterDamage;
+                            hitstopTimer = std::min(hitstopTimer + balance.hitstopPlayerHit, maxHitstop);
+                            damageTimer = 0.65f;
+                            int dmg = static_cast<int>(std::round(balance.fireballPlayerDamage));
+                            spawnFloatingNumber(playerPos, dmg, sf::Color(255, 90, 40));
+                            recordPlayerDamage(static_cast<float>(dmg));
+
+                            hitSound.play();
+                            addScreenShake(12.f, 0.35f);
+                            spawnExplosion(fb.pos, 1.25f);
+                            fb.state = FireballState::Inactive;
+
+                            if (health <= 0.f)
+                            {
+                                gameOver = true;
+                                recordMatch("DEFEATED");
+                            }
+                        }
+                    }
+                }
+            }
+
             // Epic Victory: Collect all 4 crystals and defeat all enemies
             bool allEnemiesDead = std::all_of(enemies.begin(), enemies.end(), [](const Enemy& e) { return !e.isAlive; });
             if (collectedCount == (int)crystals.size() && allEnemiesDead)
@@ -2988,6 +3946,330 @@ int main()
                 }
 
                 recordMatch("VICTORY");
+            }
+        }
+
+        // =============================================
+        // WIZARD ENEMIES (spawned by huts; ranged mini fireball attacks)
+        // =============================================
+        if (!paused)
+        {
+            // End screens: drop any in-flight mini fireballs so they don't linger.
+            if (gameOver || victory) clearMiniFireballs();
+
+            // Victory: every living wizard fades out quickly with a smoke puff (no score).
+            if (victory)
+            {
+                for (auto& w : wizards)
+                {
+                    if (!w.active) continue;
+                    if (!w.fading) { w.fading = true; w.fadeTimer = 0.f; }
+                    w.fadeTimer += dt;
+                    if (w.fadeTimer >= balance.wizardFadeTime)
+                    {
+                        w.active = false;
+                        w.fading = false;
+                        w.fadeTimer = 0.f;
+                    }
+                }
+            }
+
+            if (!gameOver && !victory)
+            {
+                // Spawning is paused during the teleport transition and while the boss
+                // is in its phase-change invulnerability.
+                bool wizardBossInvuln = false;
+                for (const auto& foe : enemies)
+                {
+                    if (foe.type == EnemyType::Boss && foe.realm == currentRealm && foe.isAlive && foe.phaseInvulnTimer > 0.f)
+                    {
+                        wizardBossInvuln = true;
+                        break;
+                    }
+                }
+
+                bool spawnAllowed = (portalCooldown <= 0.f) && !wizardBossInvuln
+                                    && (activeWizardCount() < wizardCap);
+
+                // Each hut of the current realm runs its own timer; the global gap timer
+                // enforces that huts never spawn two wizards at the same moment.
+                if (spawnAllowed && wizardGlobalGapTimer <= 0.f)
+                {
+                    for (size_t i = 0; i < huts.size(); ++i)
+                    {
+                        if (i >= MAX_HUTS || huts[i].realm != currentRealm) continue;
+                        wizardHutTimers[i] -= dt;
+                        if (wizardHutTimers[i] <= 0.f)
+                        {
+                            Wizard* slot = nullptr;
+                            for (auto& w : wizards)
+                            {
+                                if (!w.active) { slot = &w; break; }
+                            }
+                            if (slot)
+                            {
+                                slot->active = true;
+                                slot->realm = currentRealm;
+                                slot->pos = huts[i].doorPos;
+                                slot->facing = {0.f, 1.f};
+                                slot->health = balance.wizardHealth;
+                                slot->maxHealth = balance.wizardHealth;
+                                slot->speed = balance.wizardSpeed;
+                                slot->hitTimer = 0.f;
+                                slot->emergeTimer = balance.wizardEmergeTime;
+                                slot->fading = false;
+                                slot->fadeTimer = 0.f;
+                                slot->animPhase = float(rand() % 100) / 100.f * 6.28318f;
+                                slot->animMove = 0.f;
+                                slot->attackTimer = wizardAttackCdDist(rng);
+                                slot->telegraphTimer = 0.f;
+                                slot->aimDir = {0.f, 1.f};
+                                spawnSparks(huts[i].doorPos, sf::Color(150, 120, 95), 10); // dust puff
+                            }
+                            wizardHutTimers[i] = wizardSpawnIntervalDist(rng);
+                            wizardGlobalGapTimer = balance.wizardSpawnGap;
+                            break; // global gap: at most one wizard spawns per frame
+                        }
+                    }
+                }
+                if (wizardGlobalGapTimer > 0.f)
+                    wizardGlobalGapTimer = std::max(0.f, wizardGlobalGapTimer - dt);
+                if (wizardShotGapTimer > 0.f)
+                    wizardShotGapTimer = std::max(0.f, wizardShotGapTimer - dt);
+
+                // Wizard behaviour: approach to a preferred distance, stop and face the
+                // player, back away when too close, and lob mini fireballs from range.
+                for (auto& w : wizards)
+                {
+                    if (!w.active || w.realm != currentRealm) continue;
+                    w.hitTimer = std::max(0.f, w.hitTimer - dt);
+
+                    float dx = playerPos.x - w.pos.x;
+                    float dy = playerPos.y - w.pos.y;
+                    float dist = std::sqrt(dx * dx + dy * dy);
+                    float udx = (dist > 0.0001f) ? dx / dist : 0.f;
+                    float udy = (dist > 0.0001f) ? dy / dist : 1.f;
+                    w.facing = {udx, udy};
+
+                    if (w.emergeTimer > 0.f)
+                    {
+                        w.emergeTimer = std::max(0.f, w.emergeTimer - dt);
+                        continue; // still emerging at the door: no damage, no movement
+                    }
+
+                    // Sword hit (light enemy: one or two hits; flat score, no combo).
+                    if (attackTimer > 0.f && dist < 85.f && dist > 0.f)
+                    {
+                        float dot = (facing.x * dx + facing.y * dy) / dist;
+                        if (dot > 0.15f && w.hitTimer <= 0.f)
+                        {
+                            w.health -= 1.f;
+                            w.hitTimer = 0.28f;
+                            hitstopTimer = std::min(hitstopTimer + balance.hitstopEnemyHit, maxHitstop);
+                            spawnFloatingNumber(w.pos, 1, sf::Color(255, 255, 255));
+                            hitSound.play();
+                            spawnSparks(w.pos, (w.realm == RealmLocation::ForestValley)
+                                                   ? sf::Color(175, 95, 255)
+                                                   : sf::Color(255, 95, 60), 16);
+                            addScreenShake(6.f, 0.2f);
+
+                            // Knockback that respects obstacle collision.
+                            float kbDist = 45.f;
+                            w.pos += sf::Vector2f(dx / dist * kbDist, dy / dist * kbDist);
+                            w.pos = resolveObstacleCollision(w.pos, 12.f, w.realm,
+                                                             forestBoulders, forestTrees, mountainCrags, huts);
+
+                            if (w.health <= 0.f)
+                            {
+                                // Wizard death: flat score, no combo / no extra bonuses.
+                                score += balance.wizardScoreValue;
+                                spawnSparks(w.pos, (w.realm == RealmLocation::ForestValley)
+                                                        ? sf::Color(175, 95, 255)
+                                                        : sf::Color(255, 80, 50), 40);
+                                addScreenShake(12.f, 0.3f);
+                                w.active = false;
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Ranged attack: charge a mini fireball, then launch it at the player.
+                    if (w.telegraphTimer > 0.f)
+                    {
+                        // Wind-up: keep the staff tracking the player, hold position.
+                        w.aimDir = {udx, udy};
+                        w.telegraphTimer -= dt;
+                        if (w.telegraphTimer <= 0.f)
+                        {
+                            Fireball* slot = nullptr;
+                            for (auto& fb : fireballs)
+                            {
+                                if (fb.state == FireballState::Inactive) { slot = &fb; break; }
+                            }
+                            if (slot)
+                            {
+                                slot->state = FireballState::Flying;
+                                slot->mini = true;
+                                slot->id = fireballIdCounter++;
+                                slot->pos = w.pos + sf::Vector2f(udx, udy) * 14.f + sf::Vector2f(0.f, -10.f);
+                                slot->dir = {udx, udy};
+                                slot->aimPos = playerPos;
+                                slot->warnDelay = 0.f;
+                                slot->warnTimer = 0.f;
+                                slot->warnTime = 0.f;
+                                slot->speed = balance.miniFireballSpeed;
+                                slot->emberAccum = 0.f;
+                                slot->perfectDodged = false;
+                                miniShotSound.play();
+                                wizardShotGapTimer = balance.wizardShotGap;
+                            }
+                            w.telegraphTimer = 0.f;
+                            w.attackTimer = wizardAttackCdDist(rng);
+                        }
+                        w.animMove = std::max(0.f, w.animMove - 8.f * dt);
+                        continue; // charging: skip movement this frame
+                    }
+
+                    w.attackTimer = std::max(0.f, w.attackTimer - dt);
+                    if (w.attackTimer <= 0.f && wizardShotGapTimer <= 0.f && dist <= balance.wizardPreferredDist + 60.f)
+                    {
+                        int shooters = 0;
+                        for (const auto& o : wizards)
+                        {
+                            if (o.active && o.realm == currentRealm && o.telegraphTimer > 0.f) ++shooters;
+                        }
+                        if (shooters < balance.wizardMaxShooting)
+                        {
+                            w.telegraphTimer = balance.wizardTelegraph;
+                            w.aimDir = {udx, udy};
+                            miniWarnSound.play();
+                        }
+                        else
+                        {
+                            w.attackTimer = 0.25f; // too many shooters: retry shortly
+                        }
+                    }
+
+                    // Move: approach until preferred distance, back away past the minimum.
+                    bool moving = false;
+                    if (dist > balance.wizardPreferredDist) moving = true;
+                    else if (dist < balance.wizardMinDist) moving = true;
+
+                    if (moving && dist > 0.0001f)
+                    {
+                        float dirSign = (dist > balance.wizardPreferredDist) ? 1.f : -0.45f;
+                        w.animMove = std::min(1.f, w.animMove + 8.f * dt);
+                        w.animPhase += w.speed * balance.enemyWalkSpeedFactor * dt;
+
+                        sf::Vector2f desired(udx * dirSign * w.speed, udy * dirSign * w.speed);
+                        sf::Vector2f start = w.pos;
+                        sf::Vector2f step = desired * dt;
+                        sf::Vector2f full = resolveObstacleCollision(start + step, 12.f, w.realm,
+                                                                     forestBoulders, forestTrees, mountainCrags, huts);
+                        sf::Vector2f best = full;
+                        float bestProg = (full.x - start.x) * desired.x + (full.y - start.y) * desired.y;
+                        float rX = full.x - (start.x + step.x);
+                        float rY = full.y - (start.y + step.y);
+                        if (rX * rX + rY * rY > 0.0001f)
+                        {
+                            sf::Vector2f xC = resolveObstacleCollision(start + sf::Vector2f(step.x, 0.f), 12.f, w.realm,
+                                                                       forestBoulders, forestTrees, mountainCrags, huts);
+                            sf::Vector2f yC = resolveObstacleCollision(start + sf::Vector2f(0.f, step.y), 12.f, w.realm,
+                                                                       forestBoulders, forestTrees, mountainCrags, huts);
+                            float xP = (xC.x - start.x) * desired.x + (xC.y - start.y) * desired.y;
+                            float yP = (yC.x - start.x) * desired.x + (yC.y - start.y) * desired.y;
+                            if (xP > bestProg) { bestProg = xP; best = xC; }
+                            if (yP > bestProg) { best = yC; }
+                        }
+                        w.pos = best;
+                    }
+                    else
+                    {
+                        w.animMove = std::max(0.f, w.animMove - 8.f * dt);
+                    }
+                }
+
+                // MINI FIREBALLS (wizard ranged attacks; active in both realms).
+                for (auto& fb : fireballs)
+                {
+                    if (!fb.mini || fb.state != FireballState::Flying) continue;
+
+                    fb.pos += fb.dir * fb.speed * dt;
+
+                    // Short ember trail.
+                    fb.emberAccum += dt * 40.f;
+                    while (fb.emberAccum >= 1.f)
+                    {
+                        fb.emberAccum -= 1.f;
+                        float spread = (float(rand() % 100 - 50) / 100.f);
+                        sf::Vector2f perp(-fb.dir.y, fb.dir.x);
+                        sf::Vector2f spur = -fb.dir * (35.f + float(rand() % 40)) + perp * spread * 60.f;
+                        spawnFireParticle(fb.pos + perp * spread * 6.f,
+                                          spur + sf::Vector2f(0.f, -30.f),
+                                          sf::Color(255, 190 + rand() % 55, 70 + rand() % 70),
+                                          1.5f + float(rand() % 2),
+                                          0.2f + float(rand() % 20) / 100.f, 0);
+                    }
+
+                    // Fizzles out off-screen.
+                    if (fb.pos.x < -60.f || fb.pos.x > 1160.f || fb.pos.y < -60.f || fb.pos.y > 810.f)
+                    {
+                        fb.state = FireballState::Inactive;
+                        continue;
+                    }
+
+                    // Bursts on world obstacles (huts / trees / boulders / crags).
+                    if (balance.miniBlockOnObstacles &&
+                        circleHitsObstacle(fb.pos, balance.miniFireballSize, currentRealm,
+                                           forestBoulders, forestTrees, mountainCrags, huts))
+                    {
+                        for (int i = 0; i < 6; ++i)
+                        {
+                            float a = (float(rand() % 360) * 3.14159f) / 180.f;
+                            float sp = 60.f + float(rand() % 120);
+                            spawnFireParticle(fb.pos, {std::cos(a) * sp, std::sin(a) * sp - 20.f},
+                                              sf::Color(255, 170 + rand() % 60, 60 + rand() % 60),
+                                              2.f + float(rand() % 2), 0.22f + float(rand() % 20) / 100.f, 0);
+                        }
+                        fb.state = FireballState::Inactive;
+                        continue;
+                    }
+
+                    // Hits the player (or is dashed through for a perfect dodge).
+                    float px = playerPos.x - fb.pos.x;
+                    float py = playerPos.y - fb.pos.y;
+                    float pd = std::sqrt(px * px + py * py);
+                    const float hitR = balance.miniFireballSize + 12.f;
+                    const float nearR = balance.miniFireballSize + 26.f;
+                    if (pd < nearR && dashIFrameTimer > 0.f)
+                    {
+                        if (perfectDodgeCooldown <= 0.f && !fb.perfectDodged)
+                            awardPerfectDodge();
+                        fb.perfectDodged = true;
+                        if (pd < hitR) fb.state = FireballState::Inactive; // consumed by the dodge
+                    }
+                    else if (pd < hitR && damageTimer <= 0.f)
+                    {
+                        registerPlayerDamage(std::min(health, balance.miniFireballDamage));
+                        health = std::max(0.f, health - balance.miniFireballDamage);
+                        healBlockTimer = balance.healDelayAfterDamage;
+                        hitstopTimer = std::min(hitstopTimer + balance.hitstopPlayerHit, maxHitstop);
+                        damageTimer = 0.5f;
+                        int dmg = static_cast<int>(std::round(balance.miniFireballDamage));
+                        spawnFloatingNumber(playerPos, dmg, sf::Color(255, 90, 40));
+                        recordPlayerDamage(static_cast<float>(dmg));
+                        hitSound.play();
+                        addScreenShake(balance.miniFireballShake, 0.25f);
+                        spawnSparks(fb.pos, sf::Color(255, 150, 60), 12);
+                        fb.state = FireballState::Inactive;
+
+                        if (health <= 0.f)
+                        {
+                            gameOver = true;
+                            recordMatch("DEFEATED");
+                        }
+                    }
+                }
             }
         }
 
@@ -3120,6 +4402,59 @@ int main()
             cliffShelf.setOutlineThickness(2.f);
             cliffShelf.setOutlineColor(sf::Color(35, 28, 40));
             window.draw(cliffShelf);
+        }
+
+        // Giant fireball ground telegraphs, danger markers & heat glow (Mountain Peaks)
+        if (currentRealm == RealmLocation::MountainPeaks && !paused && !gameOver && !victory)
+        {
+            for (const auto& fb : fireballs)
+            {
+                if (fb.state != FireballState::Warn || fb.warnDelay > 0.f) continue;
+
+                // Pulsing red line along the ball's path; the pulse speeds up as launch nears.
+                float urgency = std::clamp(1.f - fb.warnTimer / std::max(0.0001f, fb.warnTime), 0.f, 1.f);
+                float pulse = (std::sin(totalTime * (6.f + urgency * 16.f)) + 1.f) * 0.5f;
+                float alphaMul = 0.4f + urgency * 0.6f;
+                sf::Vector2f pathVec = fb.aimPos - fb.pos;
+                float pathLen = std::sqrt(pathVec.x * pathVec.x + pathVec.y * pathVec.y);
+                if (pathLen > 3.f)
+                {
+                    sf::Vector2f mid = fb.pos + pathVec * 0.5f;
+                    float pathAng = std::atan2(pathVec.y, pathVec.x) * 180.f / 3.14159265f;
+
+                    sf::RectangleShape warnLine({pathLen, 3.f + pulse * 4.f});
+                    warnLine.setOrigin({pathLen * 0.5f, warnLine.getSize().y * 0.5f});
+                    warnLine.setPosition(mid);
+                    warnLine.setRotation(sf::degrees(pathAng));
+                    warnLine.setFillColor(sf::Color(255, 30, 25, static_cast<std::uint8_t>(85 + pulse * 120 * alphaMul)));
+                    window.draw(warnLine);
+
+                    sf::RectangleShape coreLine({pathLen * (0.7f + pulse * 0.3f), 2.f});
+                    coreLine.setOrigin({coreLine.getSize().x * 0.5f, 1.f});
+                    coreLine.setPosition(mid);
+                    coreLine.setRotation(sf::degrees(pathAng));
+                    coreLine.setFillColor(sf::Color(255, 150, 70, static_cast<std::uint8_t>(110 + pulse * 130 * alphaMul)));
+                    window.draw(coreLine);
+
+                    // Pulsing danger marker at the end of the path.
+                    float markerPulse = (std::sin(totalTime * (7.f + urgency * 18.f)) + 1.f) * 0.5f;
+                    float md = 14.f + markerPulse * 6.f;
+                    sf::CircleShape marker(md, 26);
+                    marker.setOrigin({md, md});
+                    marker.setPosition(fb.aimPos);
+                    marker.setFillColor(sf::Color(255, 30, 20, static_cast<std::uint8_t>(25 + markerPulse * 40)));
+                    marker.setOutlineThickness(2.5f + markerPulse * 2.5f);
+                    marker.setOutlineColor(sf::Color(255, 60, 45, static_cast<std::uint8_t>(160 + markerPulse * 95)));
+                    window.draw(marker);
+                }
+            }
+
+            // Soft large heat halo that lights up the ground around each flying fireball.
+            for (const auto& fb : fireballs)
+            {
+                if (fb.state != FireballState::Flying || fb.mini) continue;
+                drawRadialGlow(window, fb.pos, balance.fireballSize * 4.f, sf::Color(255, 140, 40, 42), 24);
+            }
         }
 
         // Boss Shockwaves
@@ -3281,6 +4616,126 @@ int main()
             }
         }
 
+        // Enemy Huts in the current realm (solid world obstacles, Y-sorted)
+        for (const auto& hut : huts)
+        {
+            if (hut.realm != currentRealm) continue;
+            renderables.push_back({
+                hut.pos.y + hut.size * 0.5f,
+                [&window, hut, totalTime]() {
+                    // Soft ground shadow
+                    sf::CircleShape hs(26.f, 20);
+                    hs.setFillColor(sf::Color(0, 0, 0, 80));
+                    hs.setOrigin({26.f, 26.f});
+                    if (hut.realm == RealmLocation::ForestValley)
+                        hs.setPosition({hut.pos.x, hut.pos.y + 10.f});
+                    else
+                        hs.setPosition({hut.pos.x, hut.pos.y + 12.f});
+                    hs.setScale({1.7f, 0.5f});
+                    window.draw(hs);
+
+                    if (hut.realm == RealmLocation::ForestValley)
+                    {
+                        // Wooden body
+                        sf::RectangleShape body({44.f, 30.f});
+                        body.setFillColor(sf::Color(96, 66, 40));
+                        body.setOutlineColor(sf::Color(54, 36, 20));
+                        body.setOutlineThickness(2.f);
+                        body.setOrigin({22.f, 15.f});
+                        body.setPosition({hut.pos.x, hut.pos.y - 8.f});
+                        window.draw(body);
+
+                        // Timber planks
+                        sf::RectangleShape plank1({44.f, 2.f});
+                        plank1.setFillColor(sf::Color(74, 50, 30));
+                        plank1.setPosition({hut.pos.x - 22.f, hut.pos.y - 14.f});
+                        window.draw(plank1);
+                        sf::RectangleShape plank2({44.f, 2.f});
+                        plank2.setFillColor(sf::Color(74, 50, 30));
+                        plank2.setPosition({hut.pos.x - 22.f, hut.pos.y - 4.f});
+                        window.draw(plank2);
+
+                        // Mossy sloped roof
+                        sf::ConvexShape roof(4);
+                        roof.setPoint(0, {-30.f, -6.f});
+                        roof.setPoint(1, {30.f, -6.f});
+                        roof.setPoint(2, {12.f, -24.f});
+                        roof.setPoint(3, {-12.f, -24.f});
+                        roof.setFillColor(sf::Color(40, 72, 44));
+                        roof.setOutlineColor(sf::Color(24, 48, 28));
+                        roof.setOutlineThickness(2.f);
+                        roof.setPosition({hut.pos.x, hut.pos.y - 16.f});
+                        window.draw(roof);
+
+                        // Dark door (front side, where a character could later come out)
+                        sf::RectangleShape door({12.f, 16.f});
+                        door.setFillColor(sf::Color(38, 28, 22));
+                        door.setOutlineColor(sf::Color(20, 14, 10));
+                        door.setOutlineThickness(1.5f);
+                        door.setOrigin({6.f, 16.f});
+                        door.setPosition({hut.pos.x + 4.f, hut.pos.y + 7.f});
+                        window.draw(door);
+
+                        // Tiny warm window glow (subtle pulse)
+                        float winPulse = (std::sin(totalTime * 3.f + hut.pos.x * 0.05f) + 1.f) * 0.5f;
+                        sf::RectangleShape win({7.f, 9.f});
+                        win.setFillColor(sf::Color(255, 205, 120, static_cast<std::uint8_t>(150 + 105 * winPulse)));
+                        win.setOutlineColor(sf::Color(120, 80, 30));
+                        win.setOutlineThickness(1.f);
+                        win.setPosition({hut.pos.x - 10.f, hut.pos.y - 11.f});
+                        window.draw(win);
+                    }
+                    else
+                    {
+                        // Stone body
+                        sf::RectangleShape body({46.f, 28.f});
+                        body.setFillColor(sf::Color(108, 106, 118));
+                        body.setOutlineColor(sf::Color(58, 56, 66));
+                        body.setOutlineThickness(2.f);
+                        body.setOrigin({23.f, 14.f});
+                        body.setPosition({hut.pos.x, hut.pos.y - 8.f});
+                        window.draw(body);
+
+                        // Stone seams
+                        sf::RectangleShape seam1({46.f, 2.f});
+                        seam1.setFillColor(sf::Color(82, 80, 92));
+                        seam1.setPosition({hut.pos.x - 23.f, hut.pos.y - 12.f});
+                        window.draw(seam1);
+                        sf::RectangleShape seam2({46.f, 2.f});
+                        seam2.setFillColor(sf::Color(82, 80, 92));
+                        seam2.setPosition({hut.pos.x - 23.f, hut.pos.y - 2.f});
+                        window.draw(seam2);
+
+                        // Dark roof slab
+                        sf::ConvexShape roof(4);
+                        roof.setPoint(0, {-28.f, -4.f});
+                        roof.setPoint(1, {28.f, -4.f});
+                        roof.setPoint(2, {14.f, -16.f});
+                        roof.setPoint(3, {-14.f, -16.f});
+                        roof.setFillColor(sf::Color(42, 42, 50));
+                        roof.setOutlineColor(sf::Color(24, 24, 30));
+                        roof.setOutlineThickness(2.f);
+                        roof.setPosition({hut.pos.x, hut.pos.y - 16.f});
+                        window.draw(roof);
+
+                        // Dark doorway with a faint orange glow
+                        sf::RectangleShape door({12.f, 16.f});
+                        door.setFillColor(sf::Color(30, 26, 24));
+                        door.setOutlineColor(sf::Color(18, 15, 13));
+                        door.setOutlineThickness(1.5f);
+                        door.setOrigin({6.f, 16.f});
+                        door.setPosition({hut.pos.x - 2.f, hut.pos.y + 7.f});
+                        window.draw(door);
+                        sf::CircleShape glow(8.f, 16);
+                        glow.setFillColor(sf::Color(255, 150, 70, 26));
+                        glow.setOrigin({8.f, 8.f});
+                        glow.setPosition({hut.pos.x - 2.f, hut.pos.y + 2.f});
+                        window.draw(glow);
+                    }
+                }
+            });
+        }
+
         // Marvel-style Teleport Pod (realm gateway)
         renderables.push_back({
             teleportPod.pos.y + teleportPod.baseRY,
@@ -3335,14 +4790,43 @@ int main()
         }
 
         // Enemies in Current Realm
-        for (const auto& enemy : enemies) {
+        for (auto& enemy : enemies) {
             if (enemy.realm != currentRealm || !enemy.isAlive) continue;
 
             renderables.push_back({
                 enemy.pos.y + ((enemy.type == EnemyType::Boss) ? 50.f : 20.f),
-                [&window, enemy, totalTime]() {
+                [&window, &enemy, totalTime, dt]() {
                     sf::Vector2f epos = enemy.pos;
                     sf::Color baseColor = (enemy.type == EnemyType::Boss) ? sf::Color(255, 40, 60) : (enemy.type == EnemyType::Crawler ? sf::Color(80, 220, 120) : sf::Color(200, 35, 65));
+
+                    // Visual-only walk / idle animation (no gameplay effect). The phase
+                    // advances with the enemy's speed and the walk blend eases back to a
+                    // neutral pose while the enemy stands still.
+                    float limbSwing = 0.f;
+                    float idleBreath = 0.f;
+                    if (enemy.type != EnemyType::Boss)
+                    {
+                        bool enemyMoving = true;
+                        float enemySpeedNow = enemy.speed;
+                        if (enemy.type == EnemyType::Charger)
+                        {
+                            enemyMoving = (enemy.chargePhase == 0 || enemy.chargePhase == 2);
+                            enemySpeedNow = (enemy.chargePhase == 2) ? balance.chargerChargeSpeed : enemy.speed;
+                        }
+                        else if (enemy.type == EnemyType::Demon)
+                        {
+                            enemyMoving = !enemy.isWindingUp;
+                        }
+
+                        enemy.animMove += ((enemyMoving ? 1.f : 0.f) - enemy.animMove)
+                                          * std::min(1.f, dt * balance.enemyWalkEase);
+                        enemy.animPhase += (enemyMoving ? enemySpeedNow : 0.f)
+                                           * balance.enemyWalkSpeedFactor * dt;
+
+                        limbSwing = std::sin(enemy.animPhase) * balance.enemySwingAngle * enemy.animMove;
+                        idleBreath = std::sin(totalTime * balance.enemyBreathRate + epos.x * 0.01f)
+                                     * balance.enemyBreathAmount * (1.f - enemy.animMove);
+                    }
 
                     if (enemy.type == EnemyType::Boss)
                     {
@@ -3407,48 +4891,437 @@ int main()
                     }
                     else if (enemy.type == EnemyType::Crawler)
                     {
+                        // Crawler: low, wide body with several small scuttling legs.
+                        sf::Color bodyFill = (enemy.realm == RealmLocation::ForestValley) ? sf::Color(20, 45, 35) : sf::Color(55, 25, 20);
+                        sf::Color outlineCol = enemy.hitTimer > 0.f ? sf::Color::White : baseColor;
+                        float cy = epos.y + idleBreath;
+
+                        // Three legs per side, drawn behind the body and scuttling out of phase.
+                        const float legOffsets[3] = { -7.f, 0.f, 7.f };
+                        for (int i = 0; i < 3; ++i)
+                        {
+                            float sw = std::sin(enemy.animPhase + static_cast<float>(i) * 1.1f) * limbSwing * 0.7f;
+                            float lx = epos.x + legOffsets[i];
+
+                            sf::RectangleShape leg({2.5f, 11.f});
+                            leg.setFillColor(sf::Color(25, 25, 20));
+                            leg.setOutlineThickness(1.f);
+                            leg.setOutlineColor(outlineCol);
+                            leg.setOrigin({1.25f, 0.f});
+
+                            leg.setPosition({lx - 6.f, cy + 2.f});
+                            leg.setRotation(sf::degrees(28.f + sw));
+                            window.draw(leg);
+
+                            leg.setPosition({lx + 6.f, cy + 2.f});
+                            leg.setRotation(sf::degrees(-28.f - sw));
+                            window.draw(leg);
+                        }
+
+                        // Low, wide carapace.
                         sf::CircleShape body(16.f, 20);
-                        body.setFillColor((enemy.realm == RealmLocation::ForestValley) ? sf::Color(20, 45, 35) : sf::Color(55, 25, 20));
+                        body.setScale({1.05f, 0.6f});
+                        body.setFillColor(bodyFill);
                         body.setOutlineThickness(2.5f);
-                        body.setOutlineColor(enemy.hitTimer > 0.f ? sf::Color::White : baseColor);
+                        body.setOutlineColor(outlineCol);
                         body.setOrigin({16.f, 16.f});
-                        body.setPosition(epos);
+                        body.setPosition({epos.x, cy});
                         window.draw(body);
+
+                        // Eyes at the front of the carapace.
+                        sf::CircleShape eye(2.8f, 10);
+                        eye.setFillColor(sf::Color(255, 210, 70));
+                        eye.setPosition({epos.x - 5.f, cy - 3.f});
+                        window.draw(eye);
+                        eye.setPosition({epos.x + 5.f, cy - 3.f});
+                        window.draw(eye);
                     }
                     else if (enemy.type == EnemyType::Charger)
                     {
+                        // Charger: heavy, forward-leaning body with a horn and thick legs.
                         bool isFlashing = enemy.isWindingUp && (std::fmod(totalTime * 20.f, 2.f) < 1.f);
                         bool isStunned = (enemy.chargePhase == 3);
                         float ang = std::atan2(enemy.chargeDir.y, enemy.chargeDir.x) * 180.f / 3.14159265f;
 
-                        sf::ConvexShape body(3);
-                        body.setPoint(0, {24.f, 0.f});
-                        body.setPoint(1, {-15.f, -16.f});
-                        body.setPoint(2, {-15.f, 16.f});
-                        body.setFillColor(isStunned ? sf::Color(45, 40, 55)
-                                                    : (enemy.isWindingUp ? (isFlashing ? sf::Color(255, 235, 150) : sf::Color(120, 50, 10))
-                                                                         : sf::Color(95, 45, 15)));
+                        sf::Color chargerFill = isStunned ? sf::Color(45, 40, 55)
+                                               : (enemy.isWindingUp ? (isFlashing ? sf::Color(255, 235, 150) : sf::Color(120, 50, 10))
+                                                                    : sf::Color(95, 45, 15));
+                        sf::Color chargerOutline = enemy.hitTimer > 0.f ? sf::Color::White : sf::Color(255, 150, 40);
+
+                        float rad = ang * 3.14159265f / 180.f;
+                        sf::Vector2f fwd(std::cos(rad), std::sin(rad));
+                        sf::Vector2f perp(-fwd.y, fwd.x);
+
+                        // Thick legs (two per side), swinging out of phase.
+                        const float legPos[2] = { -4.f, 14.f };
+                        for (int i = 0; i < 2; ++i)
+                        {
+                            float sw = std::sin(enemy.animPhase + static_cast<float>(i) * 1.6f) * limbSwing * 0.6f;
+                            sf::Vector2f base = epos + fwd * legPos[i];
+
+                            sf::RectangleShape leg({5.f, 13.f});
+                            leg.setFillColor(chargerFill);
+                            leg.setOutlineThickness(1.5f);
+                            leg.setOutlineColor(chargerOutline);
+                            leg.setOrigin({2.5f, 0.f});
+
+                            leg.setPosition(base - perp * 8.f);
+                            leg.setRotation(sf::degrees(ang + 90.f + sw));
+                            window.draw(leg);
+
+                            leg.setPosition(base + perp * 8.f);
+                            leg.setRotation(sf::degrees(ang - 90.f - sw));
+                            window.draw(leg);
+                        }
+
+                        // Heavy body (drawn after the legs so it overlaps them).
+                        sf::ConvexShape body(4);
+                        body.setPoint(0, {22.f, 2.f});
+                        body.setPoint(1, {9.f, -14.f});
+                        body.setPoint(2, {-13.f, -16.f});
+                        body.setPoint(3, {-13.f, 14.f});
+                        body.setFillColor(chargerFill);
                         body.setOutlineThickness(3.f);
-                        body.setOutlineColor(enemy.hitTimer > 0.f ? sf::Color::White : sf::Color(255, 150, 40));
+                        body.setOutlineColor(chargerOutline);
                         body.setPosition(epos);
                         body.setRotation(sf::degrees(ang));
                         window.draw(body);
+
+                        // Head / horn at the front.
+                        sf::ConvexShape horn(3);
+                        horn.setPoint(0, {18.f, -8.f});
+                        horn.setPoint(1, {30.f, -1.f});
+                        horn.setPoint(2, {17.f, 3.f});
+                        horn.setFillColor(chargerFill);
+                        horn.setOutlineThickness(2.f);
+                        horn.setOutlineColor(chargerOutline);
+                        horn.setPosition(epos);
+                        horn.setRotation(sf::degrees(ang));
+                        window.draw(horn);
                     }
                     else
                     {
+                        // Demon: upright body with small flapping wings, horns and arms.
                         bool isFlashing = enemy.isWindingUp && (std::fmod(totalTime * 20.f, 2.f) < 1.f);
                         sf::Color flashColor = isFlashing ? sf::Color::White : sf::Color(255, 35, 50);
 
-                        sf::CircleShape body(26.f, 24);
-                        body.setFillColor(enemy.isWindingUp ? (isFlashing ? sf::Color(160, 40, 60) : sf::Color(65, 15, 25)) : sf::Color(35, 12, 45));
+                        sf::Color demonFill = enemy.isWindingUp ? (isFlashing ? sf::Color(160, 40, 60) : sf::Color(65, 15, 25)) : sf::Color(35, 12, 45);
+                        sf::Color demonOutline = enemy.hitTimer > 0.f ? sf::Color::White : (enemy.isWindingUp ? flashColor : baseColor);
+                        float dy = epos.y + idleBreath;
+                        float flap = std::sin(enemy.animPhase) * limbSwing * 0.5f;
+
+                        // Wings (behind the body).
+                        sf::ConvexShape wing(3);
+                        wing.setFillColor(demonFill);
+                        wing.setOutlineThickness(2.f);
+                        wing.setOutlineColor(demonOutline);
+                        wing.setPoint(0, {0.f, 0.f});
+                        wing.setPoint(1, {-20.f, -10.f});
+                        wing.setPoint(2, {-6.f, 12.f});
+                        wing.setPosition({epos.x - 8.f, dy - 6.f});
+                        wing.setRotation(sf::degrees(18.f + flap));
+                        window.draw(wing);
+
+                        sf::ConvexShape wingR(3);
+                        wingR.setFillColor(demonFill);
+                        wingR.setOutlineThickness(2.f);
+                        wingR.setOutlineColor(demonOutline);
+                        wingR.setPoint(0, {0.f, 0.f});
+                        wingR.setPoint(1, {20.f, -10.f});
+                        wingR.setPoint(2, {6.f, 12.f});
+                        wingR.setPosition({epos.x + 8.f, dy - 6.f});
+                        wingR.setRotation(sf::degrees(-18.f - flap));
+                        window.draw(wingR);
+
+                        // Arms (in front, swinging with the walk).
+                        sf::RectangleShape arm({5.f, 15.f});
+                        arm.setFillColor(demonFill);
+                        arm.setOutlineThickness(2.f);
+                        arm.setOutlineColor(demonOutline);
+                        arm.setOrigin({2.5f, 0.f});
+                        arm.setPosition({epos.x - 17.f, dy - 10.f});
+                        arm.setRotation(sf::degrees(-limbSwing));
+                        window.draw(arm);
+                        arm.setPosition({epos.x + 17.f, dy - 10.f});
+                        arm.setRotation(sf::degrees(limbSwing));
+                        window.draw(arm);
+
+                        // Upright body.
+                        sf::CircleShape body(24.f, 24);
+                        body.setScale({0.85f, 1.1f});
+                        body.setFillColor(demonFill);
                         body.setOutlineThickness(3.f);
-                        body.setOutlineColor(enemy.hitTimer > 0.f ? sf::Color::White : (enemy.isWindingUp ? flashColor : baseColor));
-                        body.setOrigin({26.f, 26.f});
-                        body.setPosition(epos);
+                        body.setOutlineColor(demonOutline);
+                        body.setOrigin({24.f, 24.f});
+                        body.setPosition({epos.x, dy - 2.f});
                         window.draw(body);
+
+                        // Horns on top.
+                        sf::ConvexShape horn(3);
+                        horn.setFillColor(demonFill);
+                        horn.setOutlineThickness(1.5f);
+                        horn.setOutlineColor(demonOutline);
+                        horn.setPoint(0, {-6.f, 0.f});
+                        horn.setPoint(1, {0.f, -13.f});
+                        horn.setPoint(2, {6.f, 0.f});
+                        horn.setPosition({epos.x - 9.f, dy - 24.f});
+                        window.draw(horn);
+                        horn.setPosition({epos.x + 9.f, dy - 24.f});
+                        window.draw(horn);
+
+                        // Glowing eyes.
+                        sf::CircleShape eye(3.5f, 12);
+                        eye.setFillColor(sf::Color(255, 220, 70));
+                        eye.setPosition({epos.x - 7.f, dy - 8.f});
+                        window.draw(eye);
+                        eye.setPosition({epos.x + 7.f, dy - 8.f});
+                        window.draw(eye);
                     }
                 }
             });
+        }
+
+        // Wizards in the current realm (spawned by huts)
+        for (auto& w : wizards)
+        {
+            if (!w.active || w.realm != currentRealm) continue;
+            renderables.push_back({
+                w.pos.y + 15.f,
+                [&window, &w, totalTime]() {
+                    bool isForest = (w.realm == RealmLocation::ForestValley);
+                    sf::Color robeCol = isForest ? sf::Color(104, 58, 168) : sf::Color(120, 32, 34);
+                    sf::Color robeDark = isForest ? sf::Color(70, 36, 118) : sf::Color(82, 20, 22);
+                    sf::Color outlineCol = (w.hitTimer > 0.f) ? sf::Color::White : robeDark;
+
+                    // Emerge (fade/scale in) and victory fade-out progress.
+                    float emergeFrac = (w.emergeTimer > 0.f)
+                        ? (1.f - w.emergeTimer / std::max(0.01f, balance.wizardEmergeTime))
+                        : 1.f;
+                    float fadeProg = w.fading ? std::min(1.f, w.fadeTimer / std::max(0.01f, balance.wizardFadeTime)) : 0.f;
+                    float scale = std::max(0.1f, emergeFrac) * (1.f - fadeProg);
+                    float alpha = std::min(1.f, emergeFrac * 1.8f) * (1.f - fadeProg);
+
+                    auto colFade = [&](sf::Color c, float mul) {
+                        std::uint8_t a = static_cast<std::uint8_t>(std::clamp(int(c.a * mul), 0, 255));
+                        return sf::Color(c.r, c.g, c.b, a);
+                    };
+
+                    // Simple walk bob (up/down while moving, gentle idle breathing).
+                    float bob = (w.animMove > 0.01f)
+                              ? std::abs(std::sin(w.animPhase * 2.f)) * 2.5f
+                              : std::sin(totalTime * balance.enemyBreathRate + w.pos.x * 0.01f) * balance.enemyBreathAmount;
+
+                    float gx = w.pos.x;
+                    float gy = w.pos.y - bob * scale;
+                    bool faceRight = (w.facing.x >= 0.f);
+
+                    // Faint aura matching the robe while emerging / active.
+                    drawRadialGlow(window, {gx, gy - 8.f}, 34.f * scale,
+                                   colFade(isForest ? sf::Color(150, 95, 235, 70) : sf::Color(240, 95, 70, 70), alpha));
+
+                    // Short staff with a glowing tip (side flipped toward travel).
+                    float staffSide = faceRight ? 1.f : -1.f;
+                    sf::RectangleShape staff({2.5f, 26.f});
+                    staff.setFillColor(sf::Color(52, 40, 34));
+                    staff.setOrigin({1.25f, 26.f});
+                    staff.setPosition({gx + staffSide * 6.f * scale, gy - 2.f});
+                    staff.setRotation(sf::degrees(faceRight ? -14.f : 14.f));
+                    window.draw(staff);
+
+                    sf::Vector2f tipPos(gx + staffSide * 11.f * scale, gy - 27.f);
+                    drawRadialGlow(window, tipPos, 12.f * scale,
+                                   colFade(isForest ? sf::Color(255, 205, 120, 210) : sf::Color(255, 170, 80, 210), alpha));
+                    sf::CircleShape tip(3.f * scale, 12);
+                    tip.setFillColor(colFade(sf::Color(255, 235, 150), alpha));
+                    tip.setOrigin({3.f * scale, 3.f * scale});
+                    tip.setPosition(tipPos);
+                    window.draw(tip);
+
+                    // Charging a shot: flare the staff tip and trace a faint aim line.
+                    if (w.telegraphTimer > 0.f)
+                    {
+                        float chg = std::clamp(1.f - w.telegraphTimer / std::max(0.01f, balance.wizardTelegraph), 0.f, 1.f);
+                        float pulse = (std::sin(totalTime * (10.f + chg * 22.f)) + 1.f) * 0.5f;
+                        drawRadialGlow(window, tipPos, (14.f + pulse * 8.f) * scale,
+                                       colFade(isForest ? sf::Color(255, 120, 240, 150) : sf::Color(255, 90, 60, 150),
+                                               alpha * (0.5f + chg * 0.5f)));
+
+                        float aimAng = std::atan2(w.aimDir.y, w.aimDir.x);
+                        float aimLen = 110.f + chg * 70.f;
+                        sf::RectangleShape aimLine({aimLen, 2.f});
+                        aimLine.setOrigin({0.f, 1.f});
+                        aimLine.setPosition(tipPos);
+                        aimLine.setRotation(sf::degrees(aimAng * 180.f / 3.14159265f));
+                        aimLine.setFillColor(colFade(isForest ? sf::Color(255, 90, 220) : sf::Color(255, 70, 40),
+                                                     alpha * (0.25f + chg * 0.4f)));
+                        window.draw(aimLine);
+                    }
+
+                    // Robed body (flared hem).
+                    sf::ConvexShape robe(4);
+                    robe.setPoint(0, {-7.f * scale, 2.f});
+                    robe.setPoint(1, {7.f * scale, 2.f});
+                    robe.setPoint(2, {9.5f * scale, -13.f * scale});
+                    robe.setPoint(3, {-9.5f * scale, -13.f * scale});
+                    robe.setFillColor(colFade(robeCol, alpha));
+                    robe.setOutlineThickness(2.f);
+                    robe.setOutlineColor(colFade(outlineCol, alpha));
+                    robe.setPosition({gx, gy});
+                    window.draw(robe);
+
+                    // Belt at the waist.
+                    sf::RectangleShape belt({15.f * scale, 2.5f * scale});
+                    belt.setFillColor(colFade(robeDark, alpha));
+                    belt.setPosition({gx - 7.5f * scale, gy - 13.f * scale});
+                    window.draw(belt);
+
+                    // Pointed hat with a small brim.
+                    sf::ConvexShape hat(3);
+                    hat.setPoint(0, {-6.f * scale, 0.f});
+                    hat.setPoint(1, {6.f * scale, 0.f});
+                    hat.setPoint(2, {0.f, -13.f * scale});
+                    hat.setFillColor(colFade(robeDark, alpha));
+                    hat.setOutlineThickness(1.5f);
+                    hat.setOutlineColor(colFade(outlineCol, alpha));
+                    hat.setPosition({gx, gy - 14.f * scale});
+                    window.draw(hat);
+
+                    sf::RectangleShape brim({14.f * scale, 2.f * scale});
+                    brim.setFillColor(colFade(robeCol, alpha));
+                    brim.setPosition({gx - 7.f * scale, gy - 14.f * scale});
+                    window.draw(brim);
+
+                    // Two small eyes in the shadowed face.
+                    sf::CircleShape eye(1.6f * scale, 8);
+                    eye.setFillColor(colFade(sf::Color(250, 240, 190), alpha));
+                    eye.setPosition({gx - 3.f * scale, gy - 9.f * scale});
+                    window.draw(eye);
+                    eye.setPosition({gx + 3.f * scale, gy - 9.f * scale});
+                    window.draw(eye);
+
+                    // Victory fade: a small smoke puff around the wizard.
+                    if (w.fading && fadeProg > 0.25f)
+                    {
+                        float puffDrift = std::sin(totalTime * 7.f + w.pos.x * 0.01f) * 4.f;
+                        sf::CircleShape smoke(5.f * scale + fadeProg * 14.f, 14);
+                        smoke.setFillColor(colFade(sf::Color(150, 140, 150), std::max(0.f, 1.f - fadeProg) * 0.5f));
+                        smoke.setOrigin({smoke.getRadius(), smoke.getRadius()});
+                        smoke.setPosition({gx + puffDrift, gy - 6.f * scale});
+                        window.draw(smoke);
+                    }
+                }
+            });
+        }
+
+        // Giant Fireballs (Mountain Peaks): layered flame ball, Y-sorted with the characters
+        if (currentRealm == RealmLocation::MountainPeaks && !paused && !gameOver && !victory)
+        {
+            for (const auto& fb : fireballs)
+            {
+                if (fb.state != FireballState::Flying) continue;
+                renderables.push_back({
+                    fb.pos.y,
+                    [&window, fb, totalTime]() {
+                        sf::RenderStates add;
+                        add.blendMode = sf::BlendAdd;
+
+                        const float idf = static_cast<float>(fb.id % 10);
+                        float fOuter = std::sin(totalTime * 3.2f + idf);
+                        float fMid   = std::sin(totalTime * 5.7f + idf * 2.1f);
+                        float fCore  = std::sin(totalTime * 9.4f + idf * 3.7f + 1.3f);
+
+                        // Layered light the fireball emits (additive glow).
+                        drawRadialGlow(window, fb.pos, balance.fireballSize * 3.4f, sf::Color(255, 150, 50, 90), 32);
+                        drawRadialGlow(window, fb.pos, balance.fireballSize * 2.0f, sf::Color(255, 70, 30, 70), 24);
+
+                        // Flame tongues trailing behind the ball, opposite of travel.
+                        float backAng = std::atan2(fb.dir.y, fb.dir.x) + 3.14159265f;
+                        sf::Vector2f back(std::cos(backAng), std::sin(backAng));
+                        sf::Vector2f perp(-back.y, back.x);
+                        for (int t = 1; t <= 4; ++t)
+                        {
+                            float wave = std::sin(totalTime * 13.f + idf + t * 1.7f) * 5.f;
+                            float backDist = balance.fireballSize * (0.7f + t * 0.55f);
+                            sf::CircleShape tongue(balance.fireballSize * (0.95f - t * 0.16f), 14);
+                            tongue.setOrigin({tongue.getRadius(), tongue.getRadius()});
+                            tongue.setPosition(fb.pos + back * backDist + perp * wave);
+                            tongue.setFillColor(sf::Color(255, 95 - t * 12, 30, 180 - t * 30));
+                            window.draw(tongue, add);
+                        }
+
+                        // Outer dark-red layer.
+                        sf::CircleShape outer(balance.fireballSize * (1.f + fOuter * 0.06f), 22);
+                        outer.setOrigin({outer.getRadius(), outer.getRadius()});
+                        outer.setPosition(fb.pos);
+                        outer.setFillColor(sf::Color(205, 35, 20, 210));
+                        window.draw(outer);
+
+                        // Orange middle layer.
+                        sf::CircleShape mid(balance.fireballSize * 0.72f * (1.f + fMid * 0.07f), 20);
+                        mid.setOrigin({mid.getRadius(), mid.getRadius()});
+                        mid.setPosition(fb.pos);
+                        mid.setFillColor(sf::Color(255, 125, 30, 235));
+                        window.draw(mid, add);
+
+                        // Bright white-yellow core.
+                        sf::CircleShape core(balance.fireballSize * 0.42f * (1.f + fCore * 0.09f), 18);
+                        core.setOrigin({core.getRadius(), core.getRadius()});
+                        core.setPosition(fb.pos);
+                        core.setFillColor(sf::Color(255, 250, 185, 255));
+                        window.draw(core, add);
+                    }
+                });
+            }
+        }
+
+        // Wizard mini fireballs (both realms): small layered flame, Y-sorted.
+        if (!paused && !gameOver && !victory)
+        {
+            for (const auto& fb : fireballs)
+            {
+                if (!fb.mini || fb.state != FireballState::Flying) continue;
+                renderables.push_back({
+                    fb.pos.y,
+                    [&window, fb, totalTime]() {
+                        sf::RenderStates add;
+                        add.blendMode = sf::BlendAdd;
+
+                        const float idf = static_cast<float>(fb.id % 7);
+                        float fMid = std::sin(totalTime * 7.3f + idf * 2.1f);
+                        float fCore = std::sin(totalTime * 11.5f + idf * 3.7f + 1.3f);
+
+                        // Small light the mini ball emits.
+                        drawRadialGlow(window, fb.pos, balance.miniFireballSize * 3.2f,
+                                       sf::Color(255, 140, 50, 80), 20);
+
+                        // Short flame trail behind the ball.
+                        float backAng = std::atan2(fb.dir.y, fb.dir.x) + 3.14159265f;
+                        sf::Vector2f back(std::cos(backAng), std::sin(backAng));
+                        for (int t = 1; t <= 2; ++t)
+                        {
+                            sf::CircleShape tongue(balance.miniFireballSize * (0.9f - t * 0.22f), 12);
+                            tongue.setOrigin({tongue.getRadius(), tongue.getRadius()});
+                            tongue.setPosition(fb.pos + back * balance.miniFireballSize * (0.8f + t * 0.8f));
+                            tongue.setFillColor(sf::Color(255, 95 - t * 15, 30, 170 - t * 40));
+                            window.draw(tongue, add);
+                        }
+
+                        // Orange middle layer.
+                        sf::CircleShape mid(balance.miniFireballSize * (1.f + fMid * 0.08f), 18);
+                        mid.setOrigin({mid.getRadius(), mid.getRadius()});
+                        mid.setPosition(fb.pos);
+                        mid.setFillColor(sf::Color(255, 120, 30, 230));
+                        window.draw(mid, add);
+
+                        // Bright core.
+                        sf::CircleShape core(balance.miniFireballSize * 0.5f * (1.f + fCore * 0.1f), 14);
+                        core.setOrigin({core.getRadius(), core.getRadius()});
+                        core.setPosition(fb.pos);
+                        core.setFillColor(sf::Color(255, 245, 180, 255));
+                        window.draw(core, add);
+                    }
+                });
+            }
         }
 
         // Ghost Trails
@@ -3460,40 +5333,118 @@ int main()
             window.draw(ghost);
         }
 
+        // Advance hero walk-cycle / idle-breathing state (visuals only, no gameplay effect)
+        {
+            float moveMag = std::sqrt(moveDir.x * moveDir.x + moveDir.y * moveDir.y);
+            float targetWalk = (moveMag > 0.01f) ? 1.f : 0.f;
+            heroWalkAmount += (targetWalk - heroWalkAmount) * std::min(1.f, dt * balance.heroWalkEase);
+            heroWalkPhase += moveMag * balance.heroWalkSpeedFactor * dt;
+        }
+
         // Player
         renderables.push_back({
             playerPos.y + 20.f,
-            [&window, playerPos, facing, attackTimer, totalTime, gameOver, victory, moveDir, dashTimer]() {
+            [&window, playerPos, facing, attackTimer, totalTime, gameOver, victory, dashTimer, heroWalkPhase, heroWalkAmount,
+             &heroTrailBase, &heroTrailTip, &heroTrailTime, &heroTrailHead, &heroTrailStrip]() {
                 float angle = std::atan2(facing.y, facing.x) * 180.f / 3.14159265f;
-                bool isMoving = (moveDir.x != 0.f || moveDir.y != 0.f);
-                float walkStep = isMoving ? std::sin(totalTime * 14.f) * 7.f : 0.f;
+                const float PI = 3.14159265f;
 
+                // ---- Attack pose: three phases driven by the existing attack timer ----
+                bool attacking = (attackTimer > 0.f && !gameOver && !victory);
+                float p = 0.f;           // 0..1 attack progress (anticipation -> strike -> recovery)
+                float swordSwing = 0.f;  // degrees the sword sweeps around the hero
+                float plant = 0.f;       // 0..1 leg-plant blend during the swing
+                if (attacking)
+                {
+                    p = std::clamp(1.f - attackTimer / balance.heroAttackAnimDuration, 0.f, 1.f);
+                    const float anticipEnd = balance.heroAttackAnticFrac;
+                    const float strikeEnd  = balance.heroAttackStrikeFrac;
+                    if (p < anticipEnd)
+                    {
+                        // Anticipation: arm and sword pull back (ease-out).
+                        float t = p / std::max(0.0001f, anticipEnd);
+                        float e = 1.f - (1.f - t) * (1.f - t);
+                        swordSwing = -balance.heroAnticipationAngle * e;
+                    }
+                    else if (p < strikeEnd)
+                    {
+                        // Strike: fast swing through the arc (ease-out).
+                        float t = (p - anticipEnd) / std::max(0.0001f, strikeEnd - anticipEnd);
+                        float e = 1.f - std::pow(1.f - t, 3.f);
+                        swordSwing = -balance.heroAnticipationAngle
+                                   + (balance.heroAnticipationAngle + balance.heroStrikeAngle) * e;
+                    }
+                    else
+                    {
+                        // Recovery: ease back to the neutral / walking pose (ease-in-out).
+                        float t = (p - strikeEnd) / std::max(0.0001f, 1.f - strikeEnd);
+                        float e = (t < 0.5f) ? (4.f * t * t * t)
+                                             : (1.f - std::pow(-2.f * t + 2.f, 3.f) * 0.5f);
+                        swordSwing = balance.heroStrikeAngle * (1.f - e);
+                    }
+                    plant = std::sin(p * PI); // 0 at the ends, 1 mid-swing
+                }
+
+                // Walk cycle: limbs swing from the shared phase, arms opposite the legs.
+                float swing = std::sin(heroWalkPhase) * balance.heroSwingAngle * heroWalkAmount;
+                float legSwing = swing * (1.f - plant * balance.heroAttackPlant); // legs plant for the strike
+                // Idle: subtle upper-body (torso) rise and fall while standing still.
+                float breath = std::sin(totalTime * balance.heroBreathRate) * balance.heroBreathAmount * (1.f - heroWalkAmount);
+                float bodyY = playerPos.y + breath;
+                float lean = swordSwing * balance.heroLeanAmount; // torso twist toward the swing
+                sf::Vector2f leanShift = facing * (swordSwing * 0.06f);
+
+                // --- Legs (two parts, opposite swing) ---
                 sf::RectangleShape leftLeg({7.f, 16.f});
                 leftLeg.setFillColor(sf::Color(45, 35, 30));
                 leftLeg.setOrigin({3.5f, 0.f});
-                leftLeg.setPosition({playerPos.x - 6.f, playerPos.y + 4.f + walkStep});
+                leftLeg.setPosition({playerPos.x - 6.f, playerPos.y + 4.f});
+                leftLeg.setRotation(sf::degrees(legSwing));
                 window.draw(leftLeg);
 
                 sf::RectangleShape rightLeg({7.f, 16.f});
                 rightLeg.setFillColor(sf::Color(45, 35, 30));
                 rightLeg.setOrigin({3.5f, 0.f});
-                rightLeg.setPosition({playerPos.x + 6.f, playerPos.y + 4.f - walkStep});
+                rightLeg.setPosition({playerPos.x + 6.f, playerPos.y + 4.f});
+                rightLeg.setRotation(sf::degrees(-legSwing));
                 window.draw(rightLeg);
 
+                // --- Arms (two parts; sword arm follows the attack swing) ---
+                sf::RectangleShape leftArm({6.f, 14.f});
+                leftArm.setFillColor(sf::Color(70, 165, 200));
+                leftArm.setOutlineThickness(1.5f);
+                leftArm.setOutlineColor(sf::Color(210, 245, 255));
+                leftArm.setOrigin({3.f, 0.f});
+                leftArm.setPosition({playerPos.x - 12.f + leanShift.x, bodyY - 9.f});
+                leftArm.setRotation(sf::degrees(-swing + swordSwing * 0.25f));
+                window.draw(leftArm);
+
+                sf::RectangleShape rightArm({6.f, 14.f});
+                rightArm.setFillColor(sf::Color(70, 165, 200));
+                rightArm.setOutlineThickness(1.5f);
+                rightArm.setOutlineColor(sf::Color(210, 245, 255));
+                rightArm.setOrigin({3.f, 0.f});
+                rightArm.setPosition({playerPos.x + 12.f + leanShift.x, bodyY - 9.f});
+                rightArm.setRotation(sf::degrees(swing + swordSwing * 0.55f));
+                window.draw(rightArm);
+
+                // --- Torso (armor) ---
                 sf::RectangleShape torso({22.f, 22.f});
                 torso.setFillColor((dashTimer > 0.f) ? sf::Color(140, 240, 255) : sf::Color(70, 165, 200));
                 torso.setOutlineThickness(2.5f);
                 torso.setOutlineColor(sf::Color(210, 245, 255));
                 torso.setOrigin({11.f, 11.f});
-                torso.setPosition({playerPos.x, playerPos.y - 2.f});
+                torso.setPosition({playerPos.x + leanShift.x, bodyY - 2.f});
+                torso.setRotation(sf::degrees(lean));
                 window.draw(torso);
 
+                // --- Head (helmet) ---
                 sf::CircleShape helmet(11.f, 20);
                 helmet.setFillColor(sf::Color(55, 75, 95));
                 helmet.setOutlineThickness(2.f);
                 helmet.setOutlineColor(sf::Color(190, 235, 255));
                 helmet.setOrigin({11.f, 11.f});
-                helmet.setPosition({playerPos.x, playerPos.y - 16.f});
+                helmet.setPosition({playerPos.x + leanShift.x, bodyY - 16.f});
                 window.draw(helmet);
 
                 sf::Vector2f lanternArm = playerPos + sf::Vector2f(-facing.y * 15.f + facing.x * 6.f, facing.x * 15.f + facing.y * 6.f);
@@ -3505,27 +5456,101 @@ int main()
                 lantern.setPosition(lanternArm);
                 window.draw(lantern);
 
-                if (attackTimer > 0.f && !gameOver && !victory)
-                {
-                    sf::Vector2f swordPos = playerPos + facing * 40.f;
+                // Sword transform for this frame (shared by the trail, blade and arc).
+                bool haveSword = false;
+                sf::Vector2f swordPos{0.f, 0.f};
+                sf::Vector2f handDir = facing;
+                sf::Vector2f bladeBase{0.f, 0.f};
+                sf::Vector2f bladeTip{0.f, 0.f};
+                float swordRotation = angle + 90.f;
 
+                if (attacking)
+                {
+                    float swingRad = (angle + swordSwing) * PI / 180.f;
+                    handDir = sf::Vector2f(std::cos(swingRad), std::sin(swingRad));
+                    swordPos = playerPos + handDir * 40.f;
+                    swordRotation = angle + 90.f + swordSwing;
+
+                    float bladeRad = swordRotation * PI / 180.f;
+                    sf::Vector2f bladeDir(-std::sin(bladeRad), std::cos(bladeRad));
+                    bladeBase = swordPos;
+                    bladeTip  = swordPos + bladeDir * 20.f;
+
+                    // Record trail samples through the strike/recovery motion only.
+                    if (p >= balance.heroAttackAnticFrac * 0.5f)
+                    {
+                        heroTrailBase[heroTrailHead] = bladeBase;
+                        heroTrailTip[heroTrailHead]  = bladeTip;
+                        heroTrailTime[heroTrailHead] = totalTime;
+                        heroTrailHead = (heroTrailHead + 1) % heroTrailMax;
+                    }
+                    haveSword = true;
+                }
+
+                // ---- Sword trail (fixed-size reusable ribbon that fades out) ----
+                {
+                    int totalValid = 0;
+                    for (int i = 0; i < heroTrailMax; ++i)
+                    {
+                        int idx = (heroTrailHead + i) % heroTrailMax;
+                        float age = totalTime - heroTrailTime[idx];
+                        if (heroTrailTime[idx] < 0.f || age < 0.f || age > balance.heroTrailDuration) continue;
+                        ++totalValid;
+                    }
+
+                    int skip = std::max(0, totalValid - balance.heroTrailLength);
+                    int v = 0;
+                    sf::Vector2f lastPos(0.f, 0.f);
+                    for (int i = 0; i < heroTrailMax; ++i)
+                    {
+                        int idx = (heroTrailHead + i) % heroTrailMax;
+                        float age = totalTime - heroTrailTime[idx];
+                        if (heroTrailTime[idx] < 0.f || age < 0.f || age > balance.heroTrailDuration) continue;
+                        if (skip > 0) { --skip; continue; }
+
+                        float a = 1.f - age / balance.heroTrailDuration;
+                        std::uint8_t alpha = static_cast<std::uint8_t>(150.f * a);
+                        heroTrailStrip[v].position = heroTrailBase[idx];
+                        heroTrailStrip[v].color = sf::Color(150, 235, 255, alpha);
+                        heroTrailStrip[v + 1].position = heroTrailTip[idx];
+                        heroTrailStrip[v + 1].color = sf::Color(150, 235, 255, alpha);
+                        lastPos = heroTrailTip[idx];
+                        v += 2;
+                    }
+
+                    if (v >= 4)
+                    {
+                        for (int j = v; j < heroTrailMax * 2; ++j)
+                        {
+                            heroTrailStrip[j].position = lastPos;
+                            heroTrailStrip[j].color = sf::Color(150, 235, 255, 0);
+                        }
+                        window.draw(heroTrailStrip);
+                    }
+                }
+
+                if (haveSword)
+                {
                     sf::RectangleShape sword({10.f, 44.f});
                     sword.setOrigin({5.f, 22.f});
                     sword.setFillColor(sf::Color(230, 250, 255));
                     sword.setOutlineThickness(2.5f);
                     sword.setOutlineColor(sf::Color::White);
                     sword.setPosition(swordPos);
-                    sword.setRotation(sf::degrees(angle + 90.f));
+                    sword.setRotation(sf::degrees(swordRotation));
                     window.draw(sword);
 
+                    // Slash arc (same shape/hitbox; follows the swing and fades at the end).
+                    float arcFade = std::clamp(1.f - std::max(0.f, p - balance.heroAttackStrikeFrac)
+                                                    / std::max(0.0001f, 1.f - balance.heroAttackStrikeFrac), 0.f, 1.f);
                     sf::CircleShape slashArc(42.f, 24);
-                    slashArc.setFillColor(sf::Color(120, 230, 255, 130));
+                    slashArc.setFillColor(sf::Color(120, 230, 255, static_cast<std::uint8_t>(130 * arcFade)));
                     slashArc.setOutlineThickness(4.f);
-                    slashArc.setOutlineColor(sf::Color::White);
+                    slashArc.setOutlineColor(sf::Color(255, 255, 255, static_cast<std::uint8_t>(255 * arcFade)));
                     slashArc.setOrigin({42.f, 42.f});
-                    slashArc.setPosition(playerPos + facing * 22.f);
+                    slashArc.setPosition(playerPos + handDir * 22.f);
                     slashArc.setScale({1.25f, 0.5f});
-                    slashArc.setRotation(sf::degrees(angle));
+                    slashArc.setRotation(sf::degrees(angle + swordSwing * 0.5f));
                     window.draw(slashArc);
                 }
             }
@@ -3552,6 +5577,53 @@ int main()
             part.setPosition(p.pos);
             window.draw(part);
         }
+
+        // Fireball embers / sparks / smoke (fixed pool) - Mountain realm only
+        if (currentRealm == RealmLocation::MountainPeaks && !paused && !gameOver && !victory)
+        {
+        for (const auto& fp : fireParticles)
+        {
+            if (!fp.active) continue;
+            float t = std::clamp(fp.life / fp.maxLife, 0.f, 1.f);
+            sf::Color col;
+            if (fp.kind == 1)
+            {
+                // Smoke: dark grey puff that spreads as it rises.
+                col = sf::Color(90, 76, 70, static_cast<std::uint8_t>(120 * (1.f - t)));
+            }
+            else
+            {
+                // Ember: yellow -> red -> dark grey as it cools.
+                sf::Color y(255, 220, 90), r(255, 60, 30), g(60, 48, 48);
+                sf::Color body = (t < 0.5f) ? colorLerp(y, r, t * 2.f) : colorLerp(r, g, (t - 0.5f) * 2.f);
+                col = sf::Color(body.r, body.g, body.b, static_cast<std::uint8_t>(215 * (1.f - t)));
+            }
+            float sz = (fp.kind == 1) ? fp.size * (0.7f + 0.6f * t) : fp.size * (1.f - t * 0.45f);
+            sf::CircleShape dot(sz, 8);
+            dot.setOrigin({sz, sz});
+            dot.setPosition(fp.pos);
+            dot.setFillColor(col);
+            window.draw(dot);
+        }
+
+        // Fireball launch / impact shock rings
+        for (const auto& r : explosionRings)
+        {
+            if (!r.active) continue;
+            float t = std::clamp(r.life / r.maxLife, 0.f, 1.f);
+            sf::Color ringCol(255, 150 - static_cast<std::uint8_t>(90 * t), 40,
+                              static_cast<std::uint8_t>(210 * (1.f - t)));
+            drawRadialGlow(window, r.pos, r.radius * 0.9f,
+                           sf::Color(255, 130, 40, static_cast<std::uint8_t>(70 * (1.f - t))));
+            sf::CircleShape ring(r.radius, 36);
+            ring.setOrigin({r.radius, r.radius});
+            ring.setPosition(r.pos);
+            ring.setFillColor(sf::Color::Transparent);
+            ring.setOutlineThickness(5.f * (1.f - t) + 1.f);
+            ring.setOutlineColor(ringCol);
+            window.draw(ring);
+        }
+        } // realm gate for fireball FX
 
         // Weather particles
         for (const auto& ff : weatherMotes) {
@@ -4051,7 +6123,7 @@ int main()
                     window.draw(totalVal);
                 }
 
-                sf::Text prompt(font, "[R] Play Again   |   [H] Dashboard   |   [L] Login   |   [ENTER]/[SPACE] Skip", 13);
+                sf::Text prompt(font, "[R] Play Again   |   [H] Dashboard   |   [L] Logout to Menu   |   [ENTER]/[SPACE] Skip", 13);
                 prompt.setFillColor(sf::Color(210, 225, 235));
                 sf::FloatRect pb = prompt.getLocalBounds();
                 prompt.setOrigin({pb.position.x + pb.size.x / 2.f, pb.position.y + pb.size.y / 2.f});
