@@ -46,7 +46,7 @@ struct Balance
     float hitstopPlayerHit = 0.08f;
     float inputBufferTime = 0.15f;
     float chargerHealth = 3.f;
-    float chargerDamage = 14.f;
+    float chargerDamage = 8.f;
     float chargerWalkSpeed = 80.f;
     float chargerChargeSpeed = 520.f;
     float chargerWindup = 0.6f;
@@ -122,7 +122,7 @@ struct Balance
     float fireballWarningTime = 0.8f;     // telegraph shown before each launch (s)
     float fireballSpeed = 480.f;          // travel speed (px/s)
     float fireballSize = 20.f;            // visual radius of the ball (px)
-    float fireballPlayerDamage = 30.f;    // large hit vs. normal enemy damage
+    float fireballPlayerDamage = 12.f;    // large hit vs. normal enemy damage
     float fireballEnemyDamage = 3.f;      // regular-enemy damage on touch
     float fireballBossDamage = 0.f;       // boss takes a small amount or none
     float fireballShakeAmount = 10.f;     // launch shake intensity
@@ -156,7 +156,8 @@ struct Balance
     float wizardShotGap = 0.8f;         // min gap between any two mini fireball launches (s)
     float miniFireballSpeed = 300.f;    // travel speed (px/s)
     float miniFireballSize = 5.f;       // visual radius of the mini ball (px)
-    float miniFireballDamage = 8.f;     // damage on player hit
+    float miniFireballDamage = 8.f;     // damage on player hit (Mystic Forest Valley)
+    float miniFireballDamageMap2 = 4.f; // damage on player hit (Craggy Mountain Peaks)
     float miniFireballShake = 4.f;      // screen shake on player hit
     bool miniBlockOnObstacles = true;   // mini fireballs burst on huts/trees/etc.
 };
@@ -189,6 +190,15 @@ struct UiStyle
     float hudPanelInset = 1.f;
     float hudPanelShadowOffset = 3.f;
     float hudHealthTrailTime = 0.5f;
+    // Left HUD panel (Health + Dash cluster): trimmed to fit its content.
+    float hudLeftPanelW = 270.f;
+    float hudLeftPanelH = 72.f;
+    // Bottom controls-hint strip (readable over fireflies / the world).
+    sf::Color hudHintStripBg{8, 12, 20, 175};
+    sf::Color hudHintText{225, 238, 250};
+    float hudHintStripPadX = 14.f;
+    float hudHintStripPadY = 5.f;
+    float hudHintStripCorner = 6.f;
 };
 
 inline constexpr UiStyle uiStyle{};
@@ -199,11 +209,70 @@ struct Settings
     int volume = 100;          // Master volume, 0-100 (scales every sound + BGM)
     int screenShakeMode = 0;   // 0 = On (1.0), 1 = Reduced (0.4), 2 = Off (0.0)
     int showHints = 1;         // 0 = off, 1 = on (first-run control hints)
+    // Rebindable movement keys (SFML key codes; default to WASD).
+    int moveForwardKey = static_cast<int>(sf::Keyboard::Key::W);
+    int moveBackwardKey = static_cast<int>(sf::Keyboard::Key::S);
+    int moveLeftKey = static_cast<int>(sf::Keyboard::Key::A);
+    int moveRightKey = static_cast<int>(sf::Keyboard::Key::D);
 };
 
 inline float screenShakeScale(int mode)
 {
     return (mode == 0) ? 1.0f : (mode == 1) ? 0.4f : 0.0f;
+}
+
+// Human-readable name for a rebindable movement key (display only).
+inline const char* keyDisplayName(sf::Keyboard::Key key)
+{
+    switch (key)
+    {
+        case sf::Keyboard::Key::A: return "A";
+        case sf::Keyboard::Key::B: return "B";
+        case sf::Keyboard::Key::C: return "C";
+        case sf::Keyboard::Key::D: return "D";
+        case sf::Keyboard::Key::E: return "E";
+        case sf::Keyboard::Key::F: return "F";
+        case sf::Keyboard::Key::G: return "G";
+        case sf::Keyboard::Key::H: return "H";
+        case sf::Keyboard::Key::I: return "I";
+        case sf::Keyboard::Key::J: return "J";
+        case sf::Keyboard::Key::K: return "K";
+        case sf::Keyboard::Key::L: return "L";
+        case sf::Keyboard::Key::M: return "M";
+        case sf::Keyboard::Key::N: return "N";
+        case sf::Keyboard::Key::O: return "O";
+        case sf::Keyboard::Key::P: return "P";
+        case sf::Keyboard::Key::Q: return "Q";
+        case sf::Keyboard::Key::R: return "R";
+        case sf::Keyboard::Key::S: return "S";
+        case sf::Keyboard::Key::T: return "T";
+        case sf::Keyboard::Key::U: return "U";
+        case sf::Keyboard::Key::V: return "V";
+        case sf::Keyboard::Key::W: return "W";
+        case sf::Keyboard::Key::X: return "X";
+        case sf::Keyboard::Key::Y: return "Y";
+        case sf::Keyboard::Key::Z: return "Z";
+        case sf::Keyboard::Key::Num0: return "0";
+        case sf::Keyboard::Key::Num1: return "1";
+        case sf::Keyboard::Key::Num2: return "2";
+        case sf::Keyboard::Key::Num3: return "3";
+        case sf::Keyboard::Key::Num4: return "4";
+        case sf::Keyboard::Key::Num5: return "5";
+        case sf::Keyboard::Key::Num6: return "6";
+        case sf::Keyboard::Key::Num7: return "7";
+        case sf::Keyboard::Key::Num8: return "8";
+        case sf::Keyboard::Key::Num9: return "9";
+        case sf::Keyboard::Key::Up: return "Up";
+        case sf::Keyboard::Key::Down: return "Down";
+        case sf::Keyboard::Key::Left: return "Left";
+        case sf::Keyboard::Key::Right: return "Right";
+        case sf::Keyboard::Key::Space: return "Space";
+        case sf::Keyboard::Key::LShift: return "LShift";
+        case sf::Keyboard::Key::RShift: return "RShift";
+        case sf::Keyboard::Key::LControl: return "LCtrl";
+        case sf::Keyboard::Key::RControl: return "RCtrl";
+        default: return "?";
+    }
 }
 
 inline sf::Color colorLerp(const sf::Color& a, const sf::Color& b, float t)
@@ -559,6 +628,7 @@ struct Fireball
     float emberAccum = 0.f;         // trail ember spawn accumulator
     bool perfectDodged = false;     // avoids repeated perfect-dodge awards from one ball
     bool mini = false;              // true = wizard mini fireball (shares this pool)
+    float damage = 0.f;             // player damage for mini fireballs (set at spawn per realm)
 };
 
 // Fixed pool for fireball embers / sparks / smoke puffs
@@ -709,8 +779,13 @@ struct Renderable
     std::function<void()> draw;
 };
 
+// Defined below. Used by enemy movement when blockRiver is set so that the same
+// First Map river walls that stop the player also stop every enemy.
+sf::Vector2f resolveForestRiverCollision(sf::Vector2f pos, float bodyRadius);
+
 // Shared circular-vs-obstacle resolution used by both the player and enemies.
 // Pushes the body out of any obstacle it overlaps, then clamps to the map.
+// blockRiver (enemies only) additionally enforces the First Map river walls.
 sf::Vector2f resolveObstacleCollision(
     sf::Vector2f pos,
     float bodyRadius,
@@ -718,7 +793,8 @@ sf::Vector2f resolveObstacleCollision(
     const std::vector<Boulder>& forestBoulders,
     const std::vector<Tree>& forestTrees,
     const std::vector<Boulder>& mountainCrags,
-    const std::vector<Hut>& huts)
+    const std::vector<Hut>& huts,
+    bool blockRiver = false)
 {
     if (realm == RealmLocation::ForestValley)
     {
@@ -770,9 +846,78 @@ sf::Vector2f resolveObstacleCollision(
             pos = h.pos + sf::Vector2f(dx / dist * minDist, dy / dist * minDist);
     }
 
+    // Enemies on the First Map get the same river walls as the player, so they
+    // cannot chase, patrol, slide or be knocked across the water.
+    if (blockRiver && realm == RealmLocation::ForestValley)
+        pos = resolveForestRiverCollision(pos, bodyRadius);
+
     pos.x = std::clamp(pos.x, 30.f, 1070.f);
     pos.y = std::clamp(pos.y, 30.f, 720.f);
     return pos;
+}
+
+// First Map (Forest Valley) winding river: centre X for a given Y. Shared by the
+// river rendering and its collision so the two can never drift apart.
+inline float forestRiverCenterX(float y)
+{
+    return 570.f + std::sin(y * 0.012f + 0.8f) * 28.f;
+}
+
+// First Map only: stops the player (never enemies) wading through the river.
+// The gentle winding is followed by resolving horizontally against the river
+// centre at the body's own Y, so both curved banks act as solid edges and the
+// body cannot slip through. The existing dirt-path crossing is preserved as an
+// opening. Player body only, no allocations.
+sf::Vector2f resolveForestRiverCollision(sf::Vector2f pos, float bodyRadius)
+{
+    // The dirt path already spans the river visually, so treat its corridor as
+    // the designated crossing and leave that stretch walkable.
+    float pathCenterY = 360.f + std::sin(pos.x * 0.005f + 1.2f) * 45.f;
+    if (std::fabs(pos.y - pathCenterY) < 55.f)
+        return pos;
+
+    float centerX = forestRiverCenterX(pos.y);
+    float blockedHalf = 45.f + bodyRadius; // river half-width (615-525)/2 + body
+    float dx = pos.x - centerX;
+    if (std::fabs(dx) < blockedHalf)
+        pos.x = (dx >= 0.f) ? (centerX + blockedHalf) : (centerX - blockedHalf);
+
+    return pos;
+}
+
+// First Map only: keeps melee enemies able to reach the player across the river
+// without letting them wade through the water. If 'from' and the player sit on
+// opposite banks, this returns a target that first leads the body into the
+// dirt-path corridor on its own bank and then through the designated crossing;
+// otherwise it simply returns playerPos. The actual water is still enforced by
+// resolveForestRiverCollision, so the enemy can only ever cross at the path.
+inline sf::Vector2f forestRiverCrossingTarget(sf::Vector2f from, sf::Vector2f playerPos, float bodyRadius)
+{
+    float enemyCenterX  = forestRiverCenterX(from.y);
+    float playerCenterX = forestRiverCenterX(playerPos.y);
+    float enemySide  = from.x - enemyCenterX;
+    float playerSide = playerPos.x - playerCenterX;
+
+    bool oppositeBanks = (std::fabs(enemySide) > 4.f) && (std::fabs(playerSide) > 4.f) &&
+                         ((enemySide > 0.f) != (playerSide > 0.f));
+    if (!oppositeBanks)
+        return playerPos;
+
+    // Where the river centre meets the dirt-path corridor (the designated crossing).
+    const float crossX = forestRiverCenterX(360.f);
+    const float crossY = 360.f + std::sin(crossX * 0.005f + 1.2f) * 45.f;
+
+    float corridorY = 360.f + std::sin(from.x * 0.005f + 1.2f) * 45.f;
+    if (std::fabs(from.y - corridorY) > 40.f)
+    {
+        // Not lined up with the path yet: walk to the crossing mouth on our own bank
+        // so the enemy never cuts diagonally into the water.
+        float mouthX = crossX + ((enemySide > 0.f) ? 1.f : -1.f) * (45.f + bodyRadius + 26.f);
+        return {mouthX, crossY};
+    }
+
+    // Already in the corridor: head straight through the crossing.
+    return {crossX, crossY};
 }
 
 // Returns true if a moving circle overlaps any solid obstacle in the given
@@ -844,8 +989,12 @@ void moveEnemyWithCollision(
 {
     if (dt <= 0.f) return;
 
-    float dx = playerPos.x - enemy.pos.x;
-    float dy = playerPos.y - enemy.pos.y;
+    sf::Vector2f seekPos = playerPos;
+    if (realm == RealmLocation::ForestValley)
+        seekPos = forestRiverCrossingTarget(enemy.pos, playerPos, bodyRadius);
+
+    float dx = seekPos.x - enemy.pos.x;
+    float dy = seekPos.y - enemy.pos.y;
     float dist = std::sqrt(dx * dx + dy * dy);
     if (dist <= 1.f) return;
 
@@ -883,7 +1032,7 @@ void moveEnemyWithCollision(
     sf::Vector2f step = desired * dt;
 
     sf::Vector2f full = resolveObstacleCollision(start + step, bodyRadius, realm,
-                                                 forestBoulders, forestTrees, mountainCrags, huts);
+                                                 forestBoulders, forestTrees, mountainCrags, huts, true);
     sf::Vector2f best = full;
     float bestProgress = (full.x - start.x) * desired.x + (full.y - start.y) * desired.y;
 
@@ -893,9 +1042,9 @@ void moveEnemyWithCollision(
     if (resX * resX + resY * resY > 0.0001f)
     {
         sf::Vector2f xCand = resolveObstacleCollision(start + sf::Vector2f(step.x, 0.f), bodyRadius, realm,
-                                                      forestBoulders, forestTrees, mountainCrags, huts);
+                                                      forestBoulders, forestTrees, mountainCrags, huts, true);
         sf::Vector2f yCand = resolveObstacleCollision(start + sf::Vector2f(0.f, step.y), bodyRadius, realm,
-                                                      forestBoulders, forestTrees, mountainCrags, huts);
+                                                      forestBoulders, forestTrees, mountainCrags, huts, true);
 
         float xProg = (xCand.x - start.x) * desired.x + (xCand.y - start.y) * desired.y;
         float yProg = (yCand.x - start.x) * desired.x + (yCand.y - start.y) * desired.y;
@@ -1455,6 +1604,7 @@ int main()
     {
         std::ifstream fin("highscore.txt");
         if (fin >> highScore) {}
+        if (highScore < 0) highScore = 0;
     }
 
     auto saveHighScore = [&](int currentScore) {
@@ -1498,6 +1648,9 @@ int main()
 
     // Settings: load persisted values (missing file -> defaults), then apply volume.
     Settings gameSettings;
+    auto validKeyCode = [](int k) {
+        return k >= 0 && k < static_cast<int>(sf::Keyboard::KeyCount);
+    };
     {
         std::ifstream fin("settings.txt");
         std::string line;
@@ -1510,10 +1663,18 @@ int main()
             if (key == "volume") gameSettings.volume = val;
             else if (key == "screenShake") gameSettings.screenShakeMode = val;
             else if (key == "showHints") gameSettings.showHints = val;
+            else if (key == "moveForward") gameSettings.moveForwardKey = val;
+            else if (key == "moveBackward") gameSettings.moveBackwardKey = val;
+            else if (key == "moveLeft") gameSettings.moveLeftKey = val;
+            else if (key == "moveRight") gameSettings.moveRightKey = val;
         }
         gameSettings.volume = std::clamp(gameSettings.volume, 0, 100);
         gameSettings.screenShakeMode = std::clamp(gameSettings.screenShakeMode, 0, 2);
         gameSettings.showHints = std::clamp(gameSettings.showHints, 0, 1);
+        if (!validKeyCode(gameSettings.moveForwardKey)) gameSettings.moveForwardKey = static_cast<int>(sf::Keyboard::Key::W);
+        if (!validKeyCode(gameSettings.moveBackwardKey)) gameSettings.moveBackwardKey = static_cast<int>(sf::Keyboard::Key::S);
+        if (!validKeyCode(gameSettings.moveLeftKey)) gameSettings.moveLeftKey = static_cast<int>(sf::Keyboard::Key::A);
+        if (!validKeyCode(gameSettings.moveRightKey)) gameSettings.moveRightKey = static_cast<int>(sf::Keyboard::Key::D);
     }
 
     auto saveSettings = [&]() {
@@ -1521,7 +1682,11 @@ int main()
         if (fout)
             fout << "volume=" << gameSettings.volume << "\n"
                  << "screenShake=" << gameSettings.screenShakeMode << "\n"
-                 << "showHints=" << gameSettings.showHints << "\n";
+                 << "showHints=" << gameSettings.showHints << "\n"
+                 << "moveForward=" << gameSettings.moveForwardKey << "\n"
+                 << "moveBackward=" << gameSettings.moveBackwardKey << "\n"
+                 << "moveLeft=" << gameSettings.moveLeftKey << "\n"
+                 << "moveRight=" << gameSettings.moveRightKey << "\n";
     };
 
     auto applyVolume = [&]() {
@@ -1551,12 +1716,35 @@ int main()
                              ? matchHistory.back().heroName : "Hero";
     int homeSelection = 0;
 
+    // Settings screen selection state.
+    int settingsSelection = 0;       // 0..8 (rows; 7 = Reset Controls, 8 = Back)
+    bool settingsListening = false;  // true while waiting for a replacement key
+
     // Home menu button geometry (5 stacked buttons) and shared nav helpers.
     auto homeButtonRect = [](int i) {
         return sf::FloatRect({380.f, 300.f + static_cast<float>(i) * 58.f}, {340.f, 46.f});
     };
+    // Back button shared by the informational screens (How to Play).
     auto placeholderBackRect = []() {
-        return sf::FloatRect({380.f, 470.f}, {340.f, 50.f});
+        return sf::FloatRect({450.f, 660.f}, {200.f, 46.f});
+    };
+    // Settings screen bottom buttons (Reset Controls / Back).
+    auto settingsResetRect = []() {
+        return sf::FloatRect({330.f, 590.f}, {200.f, 46.f});
+    };
+    auto settingsBackRect = []() {
+        return sf::FloatRect({570.f, 590.f}, {200.f, 46.f});
+    };
+    // Selectable Settings rows 0..6 (7 = Reset Controls, 8 = Back use the button rects above).
+    auto settingsRowRect = [](int row) {
+        float y = 198.f;
+        if (row == 1) y = 284.f;
+        else if (row == 2) y = 314.f;
+        else if (row == 3) y = 400.f;
+        else if (row == 4) y = 430.f;
+        else if (row == 5) y = 460.f;
+        else if (row == 6) y = 490.f;
+        return sf::FloatRect({320.f, y}, {460.f, 28.f});
     };
     auto confirmHomeSelection = [&]() {
         if (homeSelection == 0)
@@ -1752,18 +1940,18 @@ int main()
     // Enemies across both realms
     std::vector<Enemy> enemies = {
         // Forest Valley Enemies
-        {EnemyType::Crawler, RealmLocation::ForestValley, {180.f, 180.f}, 2.f, 2.f, 135.f, 7.f, 0.f, 0.f, true, "Crawler"},
-        {EnemyType::Crawler, RealmLocation::ForestValley, {850.f, 560.f}, 2.f, 2.f, 135.f, 7.f, 0.f, 0.f, true, "Crawler"},
-        {EnemyType::Demon,   RealmLocation::ForestValley, {220.f, 500.f}, 4.f, 4.f, 95.f,  12.f, 0.f, 0.f, true, "Shadow Demon"},
+        {EnemyType::Crawler, RealmLocation::ForestValley, {180.f, 180.f}, 2.f, 2.f, 135.f, 7.f, 0.f, 0.f, true, "Mossling"},
+        {EnemyType::Crawler, RealmLocation::ForestValley, {850.f, 560.f}, 2.f, 2.f, 135.f, 7.f, 0.f, 0.f, true, "Mossling"},
+        {EnemyType::Demon,   RealmLocation::ForestValley, {220.f, 500.f}, 4.f, 4.f, 95.f,  12.f, 0.f, 0.f, true, "Gloomfiend"},
 
         // Mountain Peaks Enemies (with SHADOW LORD BOSS in his Mountain Fortress)
         {EnemyType::Boss,    RealmLocation::MountainPeaks, {550.f, 220.f}, 14.f, 14.f, 75.f, balance.bossMeleeDamage, 0.f, 0.f, true, "SHADOW LORD"},
-        {EnemyType::Crawler, RealmLocation::MountainPeaks, {280.f, 440.f}, 2.f,  2.f,  140.f, 8.f, 0.f, 0.f, true, "Crag Crawler"},
-        {EnemyType::Crawler, RealmLocation::MountainPeaks, {820.f, 440.f}, 2.f,  2.f,  140.f, 8.f, 0.f, 0.f, true, "Crag Crawler"},
+        {EnemyType::Crawler, RealmLocation::MountainPeaks, {280.f, 440.f}, 2.f,  2.f,  140.f, 5.f, 0.f, 0.f, true, "Cragling"},
+        {EnemyType::Crawler, RealmLocation::MountainPeaks, {820.f, 440.f}, 2.f,  2.f,  140.f, 5.f, 0.f, 0.f, true, "Cragling"},
 
-        // Mountain Peaks Chargers (blitz along the crags)
-        {EnemyType::Charger, RealmLocation::MountainPeaks, {430.f, 430.f}, balance.chargerHealth, balance.chargerHealth, balance.chargerWalkSpeed, balance.chargerDamage, 0.f, 0.f, true, "Charger"},
-        {EnemyType::Charger, RealmLocation::MountainPeaks, {680.f, 430.f}, balance.chargerHealth, balance.chargerHealth, balance.chargerWalkSpeed, balance.chargerDamage, 0.f, 0.f, true, "Charger"}
+        // Mountain Peaks Cragbulls (blitz along the crags)
+        {EnemyType::Charger, RealmLocation::MountainPeaks, {430.f, 430.f}, balance.chargerHealth, balance.chargerHealth, balance.chargerWalkSpeed, balance.chargerDamage, 0.f, 0.f, true, "Cragbull"},
+        {EnemyType::Charger, RealmLocation::MountainPeaks, {680.f, 430.f}, balance.chargerHealth, balance.chargerHealth, balance.chargerWalkSpeed, balance.chargerDamage, 0.f, 0.f, true, "Cragbull"}
     };
 
     // Environment: Forest Valley (গাছপালা ও শ্যাওলা পাথর)
@@ -2075,8 +2263,8 @@ int main()
         corner.setPosition({x + w - rad, y + h - rad});   window.draw(corner);
     };
 
-    // Full run reset used by the pause menu's "Quit to Login".
-    auto quitToLogin = [&]() {
+    // Full run reset used by the pause menu's "Quit to Login" / "Quit to Home".
+    auto quitToLogin = [&](GameState target = GameState::LoginScreen) {
         health = 100.f;
         healthTrail = 100.f;
         damageTimer = 0.f;
@@ -2114,6 +2302,7 @@ int main()
         endAnimTime = 0.f;
         endIsNewHigh = false;
         currentRealm = RealmLocation::ForestValley;
+        initTeleportPod(teleportPod, sf::Vector2f(1000.f, 360.f), sf::Color(70, 220, 255), false);
 
         gameOver = false;
         victory = false;
@@ -2153,7 +2342,12 @@ int main()
         for (auto& fn : floatingNumbers) fn.active = false;
         for (auto& dh : damageHistory) { dh.timestamp = -100.f; dh.amount = 0.f; }
         damageHistoryHead = 0;
-        gameState = GameState::LoginScreen;
+
+        for (auto& w : wizards) w.active = false;
+        clearMiniFireballs();
+        resetWizardSpawnTimers();
+
+        gameState = target;
         clock.restart();
     };
 
@@ -2190,9 +2384,18 @@ int main()
                     {
                         gameState = GameState::HomeMenu; // Esc backs out of the login screen
                     }
+                    else if (gameState == GameState::Settings && settingsListening)
+                    {
+                        settingsListening = false; // Esc cancels key-selection mode
+                    }
                     else if (gameState == GameState::Settings || gameState == GameState::HowToPlay)
                     {
-                        gameState = GameState::HomeMenu; // Esc backs out of the placeholders
+                        settingsListening = false;
+                        gameState = GameState::HomeMenu; // Esc backs out
+                    }
+                    else if (gameState == GameState::Playing && (gameOver || victory))
+                    {
+                        quitToLogin(GameState::HomeMenu); // Esc on the end screen returns to the Home menu
                     }
                     else
                     {
@@ -2214,11 +2417,11 @@ int main()
                 {
                     if (key->code == sf::Keyboard::Key::Up || key->code == sf::Keyboard::Key::W)
                     {
-                        pauseSelection = (pauseSelection + 4) % 5;
+                        pauseSelection = (pauseSelection + 5) % 6;
                     }
                     else if (key->code == sf::Keyboard::Key::Down || key->code == sf::Keyboard::Key::S)
                     {
-                        pauseSelection = (pauseSelection + 1) % 5;
+                        pauseSelection = (pauseSelection + 1) % 6;
                     }
                     else if (key->code == sf::Keyboard::Key::Left || key->code == sf::Keyboard::Key::A)
                     {
@@ -2268,6 +2471,10 @@ int main()
                         {
                             quitToLogin();
                         }
+                        else if (pauseSelection == 5)
+                        {
+                            quitToLogin(GameState::HomeMenu);
+                        }
                     }
                 }
                 else if (key->code == sf::Keyboard::Key::F3)
@@ -2304,7 +2511,109 @@ int main()
                         confirmHomeSelection();
                     }
                 }
-                else if (gameState == GameState::Settings || gameState == GameState::HowToPlay)
+                else if (gameState == GameState::Settings)
+                {
+                    if (settingsListening)
+                    {
+                        // Key-selection mode: bind the next pressed key to the selected control.
+                        int code = static_cast<int>(key->code);
+                        bool reserved = (key->code == sf::Keyboard::Key::Space ||
+                                         key->code == sf::Keyboard::Key::Enter ||
+                                         key->code == sf::Keyboard::Key::Up ||
+                                         key->code == sf::Keyboard::Key::Down ||
+                                         key->code == sf::Keyboard::Key::Left ||
+                                         key->code == sf::Keyboard::Key::Right ||
+                                         key->code == sf::Keyboard::Key::LShift ||
+                                         key->code == sf::Keyboard::Key::RShift ||
+                                         key->code == sf::Keyboard::Key::LControl ||
+                                         key->code == sf::Keyboard::Key::RControl);
+                        int r = settingsSelection;
+                        int used1 = -1, used2 = -1, used3 = -1;
+                        if (r == 3) { used1 = gameSettings.moveBackwardKey; used2 = gameSettings.moveLeftKey; used3 = gameSettings.moveRightKey; }
+                        else if (r == 4) { used1 = gameSettings.moveForwardKey; used2 = gameSettings.moveLeftKey; used3 = gameSettings.moveRightKey; }
+                        else if (r == 5) { used1 = gameSettings.moveForwardKey; used2 = gameSettings.moveBackwardKey; used3 = gameSettings.moveRightKey; }
+                        else if (r == 6) { used1 = gameSettings.moveForwardKey; used2 = gameSettings.moveBackwardKey; used3 = gameSettings.moveLeftKey; }
+                        bool duplicate = (code == used1 || code == used2 || code == used3);
+                        if (!reserved && !duplicate)
+                        {
+                            if (r == 3) gameSettings.moveForwardKey = code;
+                            else if (r == 4) gameSettings.moveBackwardKey = code;
+                            else if (r == 5) gameSettings.moveLeftKey = code;
+                            else if (r == 6) gameSettings.moveRightKey = code;
+                            saveSettings();
+                            settingsListening = false;
+                        }
+                        // Reserved or duplicate keys are ignored (keeps waiting).
+                    }
+                    else if (key->code == sf::Keyboard::Key::Up)
+                    {
+                        settingsSelection = (settingsSelection + 8) % 9;
+                    }
+                    else if (key->code == sf::Keyboard::Key::Down)
+                    {
+                        settingsSelection = (settingsSelection + 1) % 9;
+                    }
+                    else if (key->code == sf::Keyboard::Key::Left)
+                    {
+                        if (settingsSelection == 0)
+                        {
+                            gameSettings.volume = std::max(0, gameSettings.volume - 5);
+                            applyVolume();
+                            saveSettings();
+                        }
+                        else if (settingsSelection == 1)
+                        {
+                            gameSettings.screenShakeMode = (gameSettings.screenShakeMode + 2) % 3;
+                            saveSettings();
+                        }
+                        else if (settingsSelection == 2)
+                        {
+                            gameSettings.showHints = (gameSettings.showHints == 1) ? 0 : 1;
+                            saveSettings();
+                        }
+                    }
+                    else if (key->code == sf::Keyboard::Key::Right)
+                    {
+                        if (settingsSelection == 0)
+                        {
+                            gameSettings.volume = std::min(100, gameSettings.volume + 5);
+                            applyVolume();
+                            saveSettings();
+                        }
+                        else if (settingsSelection == 1)
+                        {
+                            gameSettings.screenShakeMode = (gameSettings.screenShakeMode + 1) % 3;
+                            saveSettings();
+                        }
+                        else if (settingsSelection == 2)
+                        {
+                            gameSettings.showHints = (gameSettings.showHints == 1) ? 0 : 1;
+                            saveSettings();
+                        }
+                    }
+                    else if (key->code == sf::Keyboard::Key::Enter || key->code == sf::Keyboard::Key::Space)
+                    {
+                        if (settingsSelection >= 3 && settingsSelection <= 6)
+                        {
+                            settingsListening = true; // start key-selection mode
+                        }
+                        else if (settingsSelection == 7)
+                        {
+                            // Reset Controls: restore default movement keys.
+                            gameSettings.moveForwardKey = static_cast<int>(sf::Keyboard::Key::W);
+                            gameSettings.moveBackwardKey = static_cast<int>(sf::Keyboard::Key::S);
+                            gameSettings.moveLeftKey = static_cast<int>(sf::Keyboard::Key::A);
+                            gameSettings.moveRightKey = static_cast<int>(sf::Keyboard::Key::D);
+                            saveSettings();
+                        }
+                        else if (settingsSelection == 8)
+                        {
+                            settingsListening = false;
+                            gameState = GameState::HomeMenu; // Back
+                        }
+                    }
+                }
+                else if (gameState == GameState::HowToPlay)
                 {
                     if (key->code == sf::Keyboard::Key::Enter || key->code == sf::Keyboard::Key::Space)
                     {
@@ -2391,6 +2700,7 @@ int main()
                         endAnimTime = 0.f;
                         endIsNewHigh = false;
                         currentRealm = RealmLocation::ForestValley;
+                        initTeleportPod(teleportPod, sf::Vector2f(1000.f, 360.f), sf::Color(70, 220, 255), false);
 
                         gameOver = false;
                         victory = false;
@@ -2436,8 +2746,8 @@ int main()
                         clock.restart();
                     }
 
-                    // Return to the Home menu on 'L' (Logout after a run)
-                    if (key->code == sf::Keyboard::Key::L && (gameOver || victory))
+                    // Return to the Home menu after a run on 'L' (Logout) or 'B' (Back to Home)
+                    if ((key->code == sf::Keyboard::Key::L || key->code == sf::Keyboard::Key::B) && (gameOver || victory))
                     {
                         health = 100.f;
                         healthTrail = 100.f;
@@ -2476,6 +2786,7 @@ int main()
                         endAnimTime = 0.f;
                         endIsNewHigh = false;
                         currentRealm = RealmLocation::ForestValley;
+                        initTeleportPod(teleportPod, sf::Vector2f(1000.f, 360.f), sf::Color(70, 220, 255), false);
 
                         gameOver = false;
                         victory = false;
@@ -2597,7 +2908,57 @@ int main()
                             }
                         }
                     }
-                    else if (gameState == GameState::Settings || gameState == GameState::HowToPlay)
+                    else if (gameState == GameState::Settings)
+                    {
+                        if (settingsBackRect().contains(mousePos))
+                        {
+                            settingsListening = false;
+                            gameState = GameState::HomeMenu; // Back
+                        }
+                        else if (settingsResetRect().contains(mousePos))
+                        {
+                            // Reset Controls: restore default movement keys.
+                            settingsListening = false;
+                            gameSettings.moveForwardKey = static_cast<int>(sf::Keyboard::Key::W);
+                            gameSettings.moveBackwardKey = static_cast<int>(sf::Keyboard::Key::S);
+                            gameSettings.moveLeftKey = static_cast<int>(sf::Keyboard::Key::A);
+                            gameSettings.moveRightKey = static_cast<int>(sf::Keyboard::Key::D);
+                            saveSettings();
+                        }
+                        else
+                        {
+                            // Click a row: select it, and activate its primary action.
+                            for (int i = 0; i <= 6; ++i)
+                            {
+                                if (settingsRowRect(i).contains(mousePos))
+                                {
+                                    settingsSelection = i;
+                                    if (i == 0)
+                                    {
+                                        gameSettings.volume = std::min(100, gameSettings.volume + 5);
+                                        applyVolume();
+                                        saveSettings();
+                                    }
+                                    else if (i == 1)
+                                    {
+                                        gameSettings.screenShakeMode = (gameSettings.screenShakeMode == 2) ? 0 : 2;
+                                        saveSettings();
+                                    }
+                                    else if (i == 2)
+                                    {
+                                        gameSettings.showHints = (gameSettings.showHints == 1) ? 0 : 1;
+                                        saveSettings();
+                                    }
+                                    else if (i == 3 || i == 4 || i == 5 || i == 6)
+                                    {
+                                        settingsListening = true; // start key-selection mode
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    else if (gameState == GameState::HowToPlay)
                     {
                         if (placeholderBackRect().contains(mousePos))
                         {
@@ -2729,7 +3090,7 @@ int main()
                 best.setPosition({24.f, 22.f});
                 window.draw(best);
 
-                sf::Text version(font, "v1.0", 12);
+                sf::Text version(font, "v1.1", 12);
                 version.setFillColor(sf::Color(135, 160, 185, 180));
                 sf::FloatRect vb = version.getLocalBounds();
                 version.setPosition({1100.f - vb.size.x - 24.f, 750.f - vb.size.y - 34.f});
@@ -2753,9 +3114,9 @@ int main()
         }
 
         // ===============================================
-        // PLACEHOLDER SCREENS (Settings / How to Play)
+        // SETTINGS SCREEN
         // ===============================================
-        if (gameState == GameState::Settings || gameState == GameState::HowToPlay)
+        if (gameState == GameState::Settings)
         {
             window.setView(window.getDefaultView());
             window.clear(sf::Color(10, 14, 22));
@@ -2763,24 +3124,249 @@ int main()
             drawRadialGlow(window, {550.f, 340.f}, 380.f, sf::Color(0, 140, 220, 30));
             drawRadialGlow(window, {550.f, 340.f}, 210.f, sf::Color(70, 200, 255, 25));
 
+            // Centered dark, semi-transparent panel with a gold border.
+            sf::FloatRect panel({300.f, 80.f}, {500.f, 590.f});
+            drawRoundedRect(panel, uiStyle.hudPanelCorner + 2.f, uiStyle.hudPanelBorder);
+            sf::FloatRect panelInner({panel.position.x + uiStyle.hudPanelBorderThickness,
+                                      panel.position.y + uiStyle.hudPanelBorderThickness},
+                                     {panel.size.x - uiStyle.hudPanelBorderThickness * 2.f,
+                                      panel.size.y - uiStyle.hudPanelBorderThickness * 2.f});
+            drawRoundedRect(panelInner, uiStyle.hudPanelCorner + 1.f, uiStyle.hudPanelBg);
+
+            // Mouse position (used for hover selection of rows).
+            sf::Vector2i pixelPos = sf::Mouse::getPosition(window);
+            sf::Vector2f mPos = window.mapPixelToCoords(pixelPos);
+
+            // Hovering a row highlights it (unless we're waiting for a key).
+            if (!settingsListening)
+            {
+                for (int i = 0; i <= 6; ++i)
+                {
+                    if (settingsRowRect(i).contains(mPos))
+                    {
+                        settingsSelection = i;
+                        break;
+                    }
+                }
+            }
+
             if (fontLoaded)
             {
-                const char* titleStr = (gameState == GameState::Settings) ? "Settings" : "How to Play";
-                sf::Text title(font, titleStr, 34);
+                sf::Text title(font, "Settings", 34);
                 title.setFillColor(sf::Color(255, 222, 95));
                 sf::FloatRect tb = title.getLocalBounds();
                 title.setOrigin({tb.position.x + tb.size.x / 2.f, tb.position.y + tb.size.y / 2.f});
-                title.setPosition({550.f, 260.f});
+                title.setPosition({550.f, 122.f});
                 window.draw(title);
 
-                sf::Text soon(font, "Coming soon", 20);
-                soon.setFillColor(sf::Color(180, 205, 230));
-                sf::FloatRect sob = soon.getLocalBounds();
-                soon.setOrigin({sob.position.x + sob.size.x / 2.f, sob.position.y + sob.size.y / 2.f});
-                soon.setPosition({550.f, 330.f});
-                window.draw(soon);
+                const float labelX = 340.f;
+                const float valueRightX = 760.f;
+
+                auto drawHeading = [&](const char* text, float y)
+                {
+                    sf::Text heading(font, text, 16);
+                    heading.setFillColor(sf::Color(140, 230, 255));
+                    heading.setPosition({labelX, y});
+                    window.draw(heading);
+                    sf::RectangleShape rule({valueRightX - labelX, 1.f});
+                    rule.setPosition({labelX, y + 24.f});
+                    rule.setFillColor(sf::Color(70, 180, 230, 120));
+                    window.draw(rule);
+                };
+                auto drawRow = [&](int row, const char* label, const char* value, float y)
+                {
+                    bool selected = (settingsSelection == row);
+                    if (selected)
+                    {
+                        sf::FloatRect rr = settingsRowRect(row);
+                        drawRoundedRect(rr, uiStyle.hudPanelCorner, sf::Color(255, 215, 105, 30));
+                    }
+
+                    sf::Text rowLabel(font, label, 15);
+                    rowLabel.setFillColor(selected ? sf::Color(255, 236, 150) : sf::Color(205, 220, 235));
+                    rowLabel.setPosition({labelX, y});
+                    window.draw(rowLabel);
+
+                    sf::Text rowValue(font, value, 15);
+                    rowValue.setFillColor(sf::Color(255, 215, 105));
+                    sf::FloatRect rb = rowValue.getLocalBounds();
+                    rowValue.setPosition({valueRightX - rb.size.x, y});
+                    window.draw(rowValue);
+                };
+
+                drawHeading("AUDIO", 168.f);
+                drawRow(0, "Master Volume", (std::to_string(gameSettings.volume) + "%").c_str(), 200.f);
+
+                drawHeading("GAMEPLAY", 254.f);
+                drawRow(1, "Screen Shake",
+                        (gameSettings.screenShakeMode == 0) ? "On"
+                        : (gameSettings.screenShakeMode == 1) ? "Reduced" : "Off", 286.f);
+                drawRow(2, "Show Hints", (gameSettings.showHints == 1) ? "On" : "Off", 316.f);
+
+                drawHeading("CONTROLS", 370.f);
+                const char* fwdText = (settingsListening && settingsSelection == 3) ? "Press a key..." : keyDisplayName(static_cast<sf::Keyboard::Key>(gameSettings.moveForwardKey));
+                const char* bwdText = (settingsListening && settingsSelection == 4) ? "Press a key..." : keyDisplayName(static_cast<sf::Keyboard::Key>(gameSettings.moveBackwardKey));
+                const char* lftText = (settingsListening && settingsSelection == 5) ? "Press a key..." : keyDisplayName(static_cast<sf::Keyboard::Key>(gameSettings.moveLeftKey));
+                const char* rgtText = (settingsListening && settingsSelection == 6) ? "Press a key..." : keyDisplayName(static_cast<sf::Keyboard::Key>(gameSettings.moveRightKey));
+                drawRow(3, "Move Forward", fwdText, 402.f);
+                drawRow(4, "Move Backward", bwdText, 432.f);
+                drawRow(5, "Move Left", lftText, 462.f);
+                drawRow(6, "Move Right", rgtText, 492.f);
             }
 
+            // Bottom buttons: Reset Controls and Back.
+            sf::FloatRect resetR = settingsResetRect();
+            sf::FloatRect backR = settingsBackRect();
+            bool resetHover = resetR.contains(mPos);
+            bool backHover = backR.contains(mPos);
+
+            auto drawMenuButton = [&](sf::FloatRect r, bool hover, const char* label)
+            {
+                float cx = r.position.x + r.size.x / 2.f;
+                float cy = r.position.y + r.size.y / 2.f;
+                if (hover)
+                    drawRadialGlow(window, {cx, cy}, 150.f, sf::Color(255, 205, 80, 55));
+                drawRoundedRect(r, uiStyle.hudPanelCorner, hover ? uiStyle.hudPanelBorder : sf::Color(90, 100, 115, 210));
+                sf::FloatRect inner({r.position.x + 3.f, r.position.y + 3.f}, {r.size.x - 6.f, r.size.y - 6.f});
+                drawRoundedRect(inner, uiStyle.hudPanelCorner - 1.f, hover ? sf::Color(26, 34, 48, 250) : uiStyle.hudPanelBg);
+                if (fontLoaded)
+                {
+                    sf::Text item(font, label, 18);
+                    item.setFillColor(hover ? sf::Color(255, 236, 150) : sf::Color(205, 220, 235));
+                    sf::FloatRect ib = item.getLocalBounds();
+                    item.setOrigin({ib.position.x + ib.size.x / 2.f, ib.position.y + ib.size.y / 2.f});
+                    item.setPosition({cx, cy});
+                    window.draw(item);
+                }
+            };
+            drawMenuButton(resetR, resetHover, "Reset Controls");
+            drawMenuButton(backR, backHover, "Back");
+
+            if (fontLoaded)
+            {
+                const char* hintText = settingsListening
+                    ? "Press a key to bind  |  Esc cancels"
+                    : "Up/Down select  |  Left/Right adjust  |  Enter rebind  |  Esc Back";
+                sf::Text hint(font, hintText, 11);
+                hint.setFillColor(sf::Color(165, 205, 230, 180));
+                sf::FloatRect hb = hint.getLocalBounds();
+                hint.setOrigin({hb.position.x + hb.size.x / 2.f, hb.position.y + hb.size.y / 2.f});
+                hint.setPosition({550.f, 650.f});
+                window.draw(hint);
+            }
+
+            window.display();
+            continue;
+        }
+
+        // ===============================================
+        // HOW TO PLAY SCREEN
+        // ===============================================
+        if (gameState == GameState::HowToPlay)
+        {
+            window.setView(window.getDefaultView());
+            window.clear(sf::Color(10, 14, 22));
+
+            drawRadialGlow(window, {550.f, 340.f}, 380.f, sf::Color(0, 140, 220, 30));
+            drawRadialGlow(window, {550.f, 340.f}, 210.f, sf::Color(70, 200, 255, 25));
+
+            // Centered dark, semi-transparent panel with a gold border (matches Settings).
+            sf::FloatRect panel({150.f, 50.f}, {800.f, 600.f});
+            drawRoundedRect(panel, uiStyle.hudPanelCorner + 2.f, uiStyle.hudPanelBorder);
+            sf::FloatRect panelInner({panel.position.x + uiStyle.hudPanelBorderThickness,
+                                      panel.position.y + uiStyle.hudPanelBorderThickness},
+                                     {panel.size.x - uiStyle.hudPanelBorderThickness * 2.f,
+                                      panel.size.y - uiStyle.hudPanelBorderThickness * 2.f});
+            drawRoundedRect(panelInner, uiStyle.hudPanelCorner + 1.f, uiStyle.hudPanelBg);
+
+            if (fontLoaded)
+            {
+                sf::Text title(font, "How to Play", 34);
+                title.setFillColor(sf::Color(255, 222, 95));
+                sf::FloatRect tb = title.getLocalBounds();
+                title.setOrigin({tb.position.x + tb.size.x / 2.f, tb.position.y + tb.size.y / 2.f});
+                title.setPosition({550.f, 90.f});
+                window.draw(title);
+
+                const float labelX = 200.f;
+                const float valueX = 430.f;
+                const float ruleX0 = 190.f;
+                const float ruleW = 720.f;
+
+                auto drawHeading = [&](const char* text, float y)
+                {
+                    sf::Text heading(font, text, 16);
+                    heading.setFillColor(sf::Color(140, 230, 255));
+                    heading.setPosition({ruleX0, y});
+                    window.draw(heading);
+                    sf::RectangleShape rule({ruleW, 1.f});
+                    rule.setPosition({ruleX0, y + 22.f});
+                    rule.setFillColor(sf::Color(70, 180, 230, 120));
+                    window.draw(rule);
+                };
+                auto drawLine = [&](const char* text, float y)
+                {
+                    sf::Text line(font, text, 15);
+                    line.setFillColor(sf::Color(205, 220, 235));
+                    line.setPosition({labelX, y});
+                    window.draw(line);
+                };
+                auto drawRow = [&](const char* label, const char* value, float y)
+                {
+                    sf::Text rowLabel(font, label, 15);
+                    rowLabel.setFillColor(sf::Color(205, 220, 235));
+                    rowLabel.setPosition({labelX, y});
+                    window.draw(rowLabel);
+                    sf::Text rowValue(font, value, 15);
+                    rowValue.setFillColor(sf::Color(255, 215, 105));
+                    rowValue.setPosition({valueX, y});
+                    window.draw(rowValue);
+                };
+
+                drawHeading("GAME OBJECTIVE", 130.f);
+                drawLine("Collect all 4 Lost Crystals and defeat every enemy in both realms to win.", 174.f);
+                drawLine("There are 4 crystals (2 per realm). Step into the glowing portal to travel.", 198.f);
+
+                drawHeading("CONTROLS", 238.f);
+                // Movement keys are drawn from the live Settings bindings (no per-frame string allocs).
+                {
+                    sf::Text rowLabel(font, "Move", 15);
+                    rowLabel.setFillColor(sf::Color(205, 220, 235));
+                    rowLabel.setPosition({labelX, 288.f});
+                    window.draw(rowLabel);
+
+                    int moveKeys[4] = { gameSettings.moveForwardKey, gameSettings.moveLeftKey,
+                                        gameSettings.moveBackwardKey, gameSettings.moveRightKey };
+                    float kx = valueX;
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        sf::Text key(font, keyDisplayName(static_cast<sf::Keyboard::Key>(moveKeys[i])), 15);
+                        key.setFillColor(sf::Color(255, 215, 105));
+                        key.setPosition({kx, 288.f});
+                        window.draw(key);
+                        kx += key.getLocalBounds().size.x + 12.f;
+                    }
+                    sf::Text arrows(font, "(Arrows work too)", 15);
+                    arrows.setFillColor(sf::Color(150, 175, 195));
+                    arrows.setPosition({kx, 288.f});
+                    window.draw(arrows);
+                }
+                drawRow("Attack (sword)", "Space", 314.f);
+                drawRow("Dash / Roll (i-frames)", "Shift or Ctrl", 340.f);
+                drawRow("Pause", "Esc or P", 366.f);
+                drawRow("Hall of Heroes / Debug", "H / F3", 392.f);
+
+                drawHeading("GAME MECHANICS", 432.f);
+                drawLine("Dash grants brief invulnerability (1.2 s cooldown) - roll through attacks.", 476.f);
+                drawLine("Health is 100 HP; regenerate 3 HP/s after 4 s without taking damage.", 500.f);
+                drawLine("Collecting a crystal restores 20 HP and scores +25.", 524.f);
+                drawLine("Chain kills within 3 s to build a combo multiplier (up to x2.0).", 548.f);
+                drawLine("Defeat the Shadow Lord boss; it shifts phase and turns briefly invulnerable.", 572.f);
+                drawLine("Hazards: Mountain Peaks hurls giant fireballs; huts release Ember Acolytes.", 596.f);
+                drawLine("Victory awards +300 and a time bonus for fast clears.", 620.f);
+            }
+
+            // Back button (returns to the Home menu).
             sf::Vector2i pixelPos = sf::Mouse::getPosition(window);
             sf::Vector2f mPos = window.mapPixelToCoords(pixelPos);
             sf::FloatRect backR = placeholderBackRect();
@@ -2808,7 +3394,7 @@ int main()
                 hint.setFillColor(sf::Color(165, 205, 230, 180));
                 sf::FloatRect hb = hint.getLocalBounds();
                 hint.setOrigin({hb.position.x + hb.size.x / 2.f, hb.position.y + hb.size.y / 2.f});
-                hint.setPosition({550.f, 560.f});
+                hint.setPosition({550.f, 725.f});
                 window.draw(hint);
             }
 
@@ -3288,13 +3874,13 @@ int main()
 
         if (!gameOver && !victory && !paused)
         {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left) || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A))
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left) || sf::Keyboard::isKeyPressed(static_cast<sf::Keyboard::Key>(gameSettings.moveLeftKey)))
                 moveDir.x -= 1.f;
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right) || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D))
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right) || sf::Keyboard::isKeyPressed(static_cast<sf::Keyboard::Key>(gameSettings.moveRightKey)))
                 moveDir.x += 1.f;
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W))
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) || sf::Keyboard::isKeyPressed(static_cast<sf::Keyboard::Key>(gameSettings.moveForwardKey)))
                 moveDir.y -= 1.f;
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S))
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) || sf::Keyboard::isKeyPressed(static_cast<sf::Keyboard::Key>(gameSettings.moveBackwardKey)))
                 moveDir.y += 1.f;
 
             if (moveDir.x != 0.f || moveDir.y != 0.f)
@@ -3322,6 +3908,12 @@ int main()
             // Realm Collisions (shared with enemy movement)
             nextPos = resolveObstacleCollision(nextPos, 18.f, currentRealm,
                                                forestBoulders, forestTrees, mountainCrags, huts);
+
+            // First Map river: the player cannot wade through the water, but the
+            // existing dirt-path crossing stays open. Enemies are unaffected.
+            if (currentRealm == RealmLocation::ForestValley)
+                nextPos = resolveForestRiverCollision(nextPos, 18.f);
+
             playerPos = nextPos;
 
             // ===============================================
@@ -3439,7 +4031,7 @@ int main()
                             float kbDist = (enemy.type == EnemyType::Boss) ? 15.f : 45.f;
                             enemy.pos += sf::Vector2f(dx / dist * kbDist, dy / dist * kbDist);
                             enemy.pos = resolveObstacleCollision(enemy.pos, balance.enemyCollisionRadius, currentRealm,
-                                                                 forestBoulders, forestTrees, mountainCrags, huts);
+                                                                 forestBoulders, forestTrees, mountainCrags, huts, true);
 
                             if (enemy.health <= 0.f)
                             {
@@ -3624,7 +4216,7 @@ int main()
 
                         sf::Vector2f next = enemy.pos + enemy.chargeDir * balance.chargerChargeSpeed * dt;
                         sf::Vector2f resolved = resolveObstacleCollision(next, balance.enemyCollisionRadius, currentRealm,
-                                                                         forestBoulders, forestTrees, mountainCrags, huts);
+                                                                         forestBoulders, forestTrees, mountainCrags, huts, true);
                         float bx = resolved.x - next.x;
                         float by = resolved.y - next.y;
                         enemy.pos = resolved;
@@ -4077,7 +4669,7 @@ int main()
                             float kbDist = 45.f;
                             w.pos += sf::Vector2f(dx / dist * kbDist, dy / dist * kbDist);
                             w.pos = resolveObstacleCollision(w.pos, 12.f, w.realm,
-                                                             forestBoulders, forestTrees, mountainCrags, huts);
+                                                             forestBoulders, forestTrees, mountainCrags, huts, true);
 
                             if (w.health <= 0.f)
                             {
@@ -4120,6 +4712,9 @@ int main()
                                 slot->speed = balance.miniFireballSpeed;
                                 slot->emberAccum = 0.f;
                                 slot->perfectDodged = false;
+                                slot->damage = (w.realm == RealmLocation::MountainPeaks)
+                                             ? balance.miniFireballDamageMap2
+                                             : balance.miniFireballDamage;
                                 miniShotSound.play();
                                 wizardShotGapTimer = balance.wizardShotGap;
                             }
@@ -4165,7 +4760,7 @@ int main()
                         sf::Vector2f start = w.pos;
                         sf::Vector2f step = desired * dt;
                         sf::Vector2f full = resolveObstacleCollision(start + step, 12.f, w.realm,
-                                                                     forestBoulders, forestTrees, mountainCrags, huts);
+                                                                     forestBoulders, forestTrees, mountainCrags, huts, true);
                         sf::Vector2f best = full;
                         float bestProg = (full.x - start.x) * desired.x + (full.y - start.y) * desired.y;
                         float rX = full.x - (start.x + step.x);
@@ -4173,9 +4768,9 @@ int main()
                         if (rX * rX + rY * rY > 0.0001f)
                         {
                             sf::Vector2f xC = resolveObstacleCollision(start + sf::Vector2f(step.x, 0.f), 12.f, w.realm,
-                                                                       forestBoulders, forestTrees, mountainCrags, huts);
+                                                                       forestBoulders, forestTrees, mountainCrags, huts, true);
                             sf::Vector2f yC = resolveObstacleCollision(start + sf::Vector2f(0.f, step.y), 12.f, w.realm,
-                                                                       forestBoulders, forestTrees, mountainCrags, huts);
+                                                                       forestBoulders, forestTrees, mountainCrags, huts, true);
                             float xP = (xC.x - start.x) * desired.x + (xC.y - start.y) * desired.y;
                             float yP = (yC.x - start.x) * desired.x + (yC.y - start.y) * desired.y;
                             if (xP > bestProg) { bestProg = xP; best = xC; }
@@ -4250,12 +4845,12 @@ int main()
                     }
                     else if (pd < hitR && damageTimer <= 0.f)
                     {
-                        registerPlayerDamage(std::min(health, balance.miniFireballDamage));
-                        health = std::max(0.f, health - balance.miniFireballDamage);
+                        registerPlayerDamage(std::min(health, fb.damage));
+                        health = std::max(0.f, health - fb.damage);
                         healBlockTimer = balance.healDelayAfterDamage;
                         hitstopTimer = std::min(hitstopTimer + balance.hitstopPlayerHit, maxHitstop);
                         damageTimer = 0.5f;
-                        int dmg = static_cast<int>(std::round(balance.miniFireballDamage));
+                        int dmg = static_cast<int>(std::round(fb.damage));
                         spawnFloatingNumber(playerPos, dmg, sf::Color(255, 90, 40));
                         recordPlayerDamage(static_cast<float>(dmg));
                         hitSound.play();
@@ -4296,34 +4891,102 @@ int main()
                 window.draw(patch);
             }
 
-            // River
+            // River (winding, full height): subtle depth shading + soft highlights,
+            // with smoothed wet shorelines hugging both curved banks.
             sf::VertexArray river(sf::PrimitiveType::TriangleStrip);
+            sf::VertexArray leftShore(sf::PrimitiveType::TriangleStrip);
+            sf::VertexArray rightShore(sf::PrimitiveType::TriangleStrip);
             for (int y = 0; y <= 750; y += 15)
             {
-                float curve = std::sin((float)y * 0.012f + 0.8f) * 28.f;
-                float leftX = 525.f + curve;
-                float rightX = 615.f + curve;
+                float fy = static_cast<float>(y);
+                float leftX = forestRiverCenterX(fy) - 45.f;
+                float rightX = forestRiverCenterX(fy) + 45.f;
 
-                sf::Color riverCol(35, 115, 165, 220);
+                // Slow depth waves give the water a gentle colour variation.
+                float depth = 0.5f + 0.5f * std::sin(fy * 0.02f + totalTime * 0.8f);
+                sf::Color leftCol(32 + static_cast<int>(12.f * depth),
+                                  104 + static_cast<int>(22.f * depth),
+                                  156 + static_cast<int>(34.f * depth), 220);
+                sf::Color rightCol(46 + static_cast<int>(14.f * depth),
+                                   126 + static_cast<int>(24.f * depth),
+                                   182 + static_cast<int>(40.f * depth), 220);
+
                 sf::Vertex v1, v2;
-                v1.position = {leftX, (float)y};
-                v1.color = riverCol;
-                v2.position = {rightX, (float)y};
-                v2.color = riverCol;
+                v1.position = {leftX, fy};
+                v1.color = leftCol;
+                v2.position = {rightX, fy};
+                v2.color = rightCol;
                 river.append(v1);
                 river.append(v2);
+
+                // Wet shoreline: dark rim at the water plus a sandy outer edge.
+                sf::Vertex ls1, ls2, rs1, rs2;
+                ls1.position = {leftX - 6.f, fy};
+                ls1.color = sf::Color(84, 74, 54, 200);
+                ls2.position = {leftX, fy};
+                ls2.color = sf::Color(40, 66, 70, 220);
+                rs1.position = {rightX, fy};
+                rs1.color = sf::Color(40, 66, 70, 220);
+                rs2.position = {rightX + 6.f, fy};
+                rs2.color = sf::Color(84, 74, 54, 200);
+                leftShore.append(ls1);
+                leftShore.append(ls2);
+                rightShore.append(rs1);
+                rightShore.append(rs2);
             }
             window.draw(river);
+            window.draw(leftShore);
+            window.draw(rightShore);
 
-            // River Shimmer
-            for (int i = 0; i < 20; ++i) {
-                float ry = std::fmod(totalTime * 65.f + i * 36.f, 750.f);
-                float curveAtY = std::sin(ry * 0.012f + 0.8f) * 28.f;
-                float rx = 525.f + curveAtY + (15.f + std::fmod(i * 17.f, 60.f));
-                sf::RectangleShape shimmer({14.f, 3.f});
-                shimmer.setFillColor(sf::Color(170, 240, 255, 190));
+            // Gentle moving highlights on the water surface.
+            for (int i = 0; i < 18; ++i)
+            {
+                float ry = std::fmod(totalTime * 48.f + i * 41.f, 750.f);
+                float base = forestRiverCenterX(ry) - 45.f;
+                float rx = base + 12.f + std::fmod(i * 19.f, 66.f);
+                float twinkle = 0.55f + 0.45f * std::sin(totalTime * 2.2f + i * 1.7f);
+                sf::RectangleShape shimmer({10.f + 6.f * twinkle, 2.5f});
+                shimmer.setFillColor(sf::Color(180, 240, 255,
+                    static_cast<std::uint8_t>(90.f + 90.f * twinkle)));
                 shimmer.setPosition({rx, ry});
                 window.draw(shimmer);
+            }
+
+            // Riverbank detail: a few small stones and grass tufts along the banks,
+            // kept clear of the crossing corridor and gameplay objects.
+            for (float by : {70.f, 150.f, 470.f, 560.f, 690.f})
+            {
+                float bank = forestRiverCenterX(by) - 45.f;
+                sf::CircleShape stone(5.f);
+                stone.setScale({1.5f, 0.8f});
+                stone.setOrigin({5.f, 5.f});
+                stone.setFillColor(sf::Color(122, 124, 118));
+                stone.setOutlineThickness(1.f);
+                stone.setOutlineColor(sf::Color(72, 72, 68));
+                stone.setPosition({bank - 9.f, by});
+                window.draw(stone);
+
+                sf::RectangleShape grass({2.f, 9.f});
+                grass.setFillColor(sf::Color(58, 122, 62));
+                grass.setPosition({bank - 4.f, by - 20.f});
+                window.draw(grass);
+            }
+            for (float by : {110.f, 600.f, 665.f, 715.f})
+            {
+                float bank = forestRiverCenterX(by) + 45.f;
+                sf::CircleShape stone(4.f);
+                stone.setScale({1.5f, 0.8f});
+                stone.setOrigin({4.f, 4.f});
+                stone.setFillColor(sf::Color(116, 118, 112));
+                stone.setOutlineThickness(1.f);
+                stone.setOutlineColor(sf::Color(70, 70, 66));
+                stone.setPosition({bank + 9.f, by});
+                window.draw(stone);
+
+                sf::RectangleShape grass({2.f, 8.f});
+                grass.setFillColor(sf::Color(52, 112, 58));
+                grass.setPosition({bank + 5.f, by - 18.f});
+                window.draw(grass);
             }
 
             // Dirt Path
@@ -5697,7 +6360,7 @@ int main()
         };
 
         // Left cluster shell (Health + Dash) at the common 25px margin
-        drawHudPanel(sf::FloatRect({25.f, 25.f}, {270.f, 100.f}));
+        drawHudPanel(sf::FloatRect({25.f, 25.f}, {uiStyle.hudLeftPanelW, uiStyle.hudLeftPanelH}));
 
         // ---- Restyled HUD health bar: rounded panel + gradient fill + damage trail ----
         const sf::FloatRect hpBar({45.f, 47.f}, {210.f, 13.f});
@@ -5916,12 +6579,18 @@ int main()
                 window.draw(portalText);
             }
 
-            // Controls Prompt
-            sf::Text helpText(font, "[SPACE] Attack  |  [SHIFT] Dash Roll  |  [PORTAL] Realms  |  [F3] Debug  |  [H] Dashboard  |  [L] Logout", 13);
-            helpText.setFillColor(sf::Color(180, 210, 225, 180));
+            // Controls Prompt (thin dark strip for readability over the world)
+            sf::Text helpText(font, "[SPACE] Attack  |  [SHIFT] Dash Roll  |  [PORTAL] Realms  |  [ESC] Pause  |  [F3] Debug  |  [H] Dashboard  |  [L] Logout", 13);
+            helpText.setFillColor(uiStyle.hudHintText);
             sf::FloatRect htb = helpText.getLocalBounds();
             helpText.setOrigin({htb.position.x + htb.size.x / 2.f, htb.position.y + htb.size.y / 2.f});
             helpText.setPosition({550.f, 725.f});
+            sf::FloatRect helpStrip(
+                {550.f - htb.size.x / 2.f - uiStyle.hudHintStripPadX,
+                 725.f - htb.size.y / 2.f - uiStyle.hudHintStripPadY},
+                {htb.size.x + 2.f * uiStyle.hudHintStripPadX,
+                 htb.size.y + 2.f * uiStyle.hudHintStripPadY});
+            drawRoundedRect(helpStrip, uiStyle.hudHintStripCorner, uiStyle.hudHintStripBg);
             window.draw(helpText);
 
             // First-run control hints (banner, bottom center)
@@ -6123,12 +6792,19 @@ int main()
                     window.draw(totalVal);
                 }
 
-                sf::Text prompt(font, "[R] Play Again   |   [H] Dashboard   |   [L] Logout to Menu   |   [ENTER]/[SPACE] Skip", 13);
+                sf::Text prompt(font, "[R] Play Again   |   [H] Dashboard   |   [L] Logout to Menu", 13);
                 prompt.setFillColor(sf::Color(210, 225, 235));
                 sf::FloatRect pb = prompt.getLocalBounds();
                 prompt.setOrigin({pb.position.x + pb.size.x / 2.f, pb.position.y + pb.size.y / 2.f});
-                prompt.setPosition({550.f, 600.f});
+                prompt.setPosition({550.f, 588.f});
                 window.draw(prompt);
+
+                sf::Text promptBack(font, "[B] Back to Home   |   [ENTER]/[SPACE] Skip", 13);
+                promptBack.setFillColor(sf::Color(210, 225, 235));
+                sf::FloatRect pbb = promptBack.getLocalBounds();
+                promptBack.setOrigin({pbb.position.x + pbb.size.x / 2.f, pbb.position.y + pbb.size.y / 2.f});
+                promptBack.setPosition({550.f, 612.f});
+                window.draw(promptBack);
             }
         }
 
@@ -6160,18 +6836,19 @@ int main()
             std::string shakeStr = (gameSettings.screenShakeMode == 0) ? "On"
                                  : (gameSettings.screenShakeMode == 1) ? "Reduced" : "Off";
 
-            const std::string labels[5] = {
+            const std::string labels[6] = {
                 "Resume",
                 "Volume: " + std::to_string(gameSettings.volume),
                 "Screen Shake: " + shakeStr,
                 std::string("Show Hints: ") + (gameSettings.showHints == 1 ? "On" : "Off"),
-                "Quit to Login"
+                "Quit to Login",
+                "Quit to Home"
             };
 
             const float rowX = 360.f;
-            const float rowY[5] = {235.f, 295.f, 355.f, 415.f, 475.f};
+            const float rowY[6] = {235.f, 295.f, 355.f, 415.f, 475.f, 535.f};
 
-            for (int i = 0; i < 5; ++i)
+            for (int i = 0; i < 6; ++i)
             {
                 bool sel = (i == pauseSelection);
 

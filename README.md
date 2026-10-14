@@ -64,8 +64,41 @@ shipped features are listed.
 - **Play** opens the existing hero-name login, which is now pre-filled with the name from
   your last run. `Esc` on the login screen returns to the Home menu.
 - After a run, the **Logout** action now returns to the Home menu (previously the login screen).
-- **Settings** and **How to Play** currently open a "Coming soon" placeholder screen with a
-  Back button (`Esc` also returns). These screens are not implemented yet.
+- **Settings** and **How to Play** are now fully implemented screens (see below).
+
+### Interactive Settings Screen (new)
+- The **Settings** screen is now functional. It has three sections:
+  **AUDIO** (Master Volume), **GAMEPLAY** (Screen Shake, Show Hints), and
+  **CONTROLS** (Move Forward / Backward / Left / Right), plus **Reset Controls** and **Back**.
+- **Navigate** the rows with `Up`/`Down` (or hover with the mouse); the selected row is highlighted.
+- **Adjust** the audio/gameplay rows with `Left`/`Right`: Master Volume changes in `5%` steps
+  (0–100%), while Screen Shake and Show Hints toggle `On`/`Off`.
+- **Rebind movement keys**: select a Move row and press `Enter`/`Space` (or click it) to enter
+  key-capture mode, then press any key to bind it. Reserved keys (`Space`, `Enter`, arrows,
+  `Shift`, `Ctrl`) and keys already bound to another direction are rejected. `Esc` cancels capture.
+- **Reset Controls** restores the default `W`/`A`/`S`/`D` bindings.
+- Arrow keys always remain available as a secondary movement scheme alongside the bindings.
+- All settings (volume, screen shake, hints, and the four movement bindings) are saved to
+  `settings.txt` and loaded on startup.
+
+### How to Play Screen (new)
+- The **How to Play** screen is no longer a placeholder; it now presents a tutorial panel
+  styled to match the Home menu and Settings screens (gold border, dark fantasy theme).
+- Three sections: **GAME OBJECTIVE** (collect all 4 crystals and clear both realms),
+  **CONTROLS**, and **GAME MECHANICS**.
+- The **CONTROLS** section shows the live movement bindings from Settings rather than
+  hardcoded keys (e.g. `W A S D`), plus Attack, Dash, Pause, and the Dashboard/Debug keys.
+- Documents only mechanics present in the game: dash invulnerability, 100 HP with out-of-combat
+  regeneration, crystal pickup healing (+20 HP, +25 score), the kill-combo multiplier, the
+  Shadow Lord boss and its phase invulnerability, and the mountain fireballs / hut Ember Acolytes.
+- A **Back** button returns to the Home menu; `Enter`, `Space`, and `Esc` also return.
+
+### Pause Menu: Quit to Home (new)
+- The pause menu now has a **Quit to Home** option immediately after **Quit to Login**.
+- Selecting it safely ends the current run and returns straight to the **Home menu**
+  (it does not close the game and does not show the Login screen).
+- The full option order is now: Resume, Volume, Screen Shake, Show Hints, Quit to Login,
+  Quit to Home; keyboard navigation wraps across all six options.
 
 ### Giant Fireball Hazard (new)
 - Added to **Craggy Mountain Peaks** only. At random intervals a rising warning tone and a
@@ -82,26 +115,26 @@ shipped features are listed.
   huts in the Mountains.
 - Huts block movement (for the player and enemies) and are drawn in correct depth order.
 
-### Wizards & Mini Fireballs (new)
-- Huts spawn robe-wearing **wizards** over time (each hut runs its own timer, with a cap on
+### Ember Acolytes & Mini Fireballs (new)
+- Huts spawn robe-wearing **Ember Acolytes** over time (each hut runs its own timer, with a cap on
   how many can be alive at once).
-- Wizards keep their distance, face the player, and lob **mini fireballs** from range after a
+- Ember Acolytes keep their distance, face the player, and lob **mini fireballs** from range after a
   short, telegraphed wind-up (with a staff-tip flare and a faint aim line).
-- Wizards are fragile (one or two sword hits) and give a small flat score with no combo.
+- Ember Acolytes are fragile (one or two sword hits) and give a small flat score with no combo.
 - Mini fireballs **burst on obstacles** (huts, trees, boulders, crags) and can be dashed
   through for a perfect dodge. They are active in both realms.
-- On victory, any living wizards fade out with a small smoke puff (no score).
+- On victory, any living Ember Acolytes fade out with a small smoke puff (no score).
 
 ### Character & Combat Animation (improved)
 - The hero now has a proper **walk cycle**, an **idle breathing** motion, and a three-phase
   **sword-swing animation** (anticipation, strike, recovery) with a fading **sword trail**.
-- Regular enemies (crawler, charger, demon) gained walk and idle animation, and wizards have
+- Regular enemies (mossling, cragbull, gloomfiend) gained walk and idle animation, and Ember Acolytes have
   their own emerge, hover, and fade visuals.
 - These are visual-only changes and do not affect gameplay or physics.
 
 ### Audio (new)
 - Added procedural sound effects for the giant fireball (warning, launch whoosh, impact boom)
-  and for wizard mini fireballs (warning chirp, launch whoosh).
+  and for Ember Acolyte mini fireballs (warning chirp, launch whoosh).
 - As before, all audio is synthesized at startup with no audio files shipped.
 
 ### Other Improvements
@@ -125,14 +158,14 @@ shipped features are listed.
 
 ### Combat
 - Five enemy archetypes:
-  - **Crawler / Crag Crawler** — fast, low-health melee pursuer with no wind-up.
-  - **Shadow Demon** — slower, heavier hitter with a telegraphed wind-up.
-  - **Charger** (Mountain realm) — telegraphs a straight charge, then blitzes at high speed; hitting an obstacle ends the charge and stuns it.
-  - **Wizard** — spawns from huts over time, keeps its distance, and lobs ranged mini fireballs; fragile and worth a small flat score.
+  - **Mossling / Cragling** — fast, low-health melee pursuer with no wind-up.
+  - **Gloomfiend** — slower, heavier hitter with a telegraphed wind-up.
+  - **Cragbull** (Mountain realm) — telegraphs a straight charge, then blitzes at high speed; hitting an obstacle ends the charge and stuns it.
+  - **Ember Acolyte** — spawns from huts over time, keeps its distance, and lobs ranged mini fireballs; fragile and worth a small flat score.
   - **Shadow Lord (Boss)** — large health pool, an on-screen health bar, and a telegraphed ground-slam that emits an expanding damage ring (shockwave).
-- **Ranged mini fireballs** — wizards charge briefly, then fire a small fireball that bursts on world obstacles and can be dashed through for a perfect dodge.
+- **Ranged mini fireballs** — Ember Acolytes charge briefly, then fire a small fireball that bursts on world obstacles and can be dashed through for a perfect dodge.
 - **Boss phases** — three phases by HP (100–60%, 60–30%, below 30%): slams get faster each phase, a second wider shockwave ring is added from phase 2 onward, and the boss gains a `+20%` speed boost in phase 3. Each phase change triggers a brief invulnerable roar pause.
-- **Wind-up telegraphs** — Demons and the Boss flash white, freeze position, then strike.
+- **Wind-up telegraphs** — Gloomfiends and the Boss flash white, freeze position, then strike.
 - **Boss slam warning** — a pulsing red ground ring plus an audible warning tone precede each slam.
 - Directional hit confirmation using a dot-product facing test, with per-target hit timers.
 - **Floating damage numbers** pop up over the player whenever damage is taken.
@@ -159,12 +192,12 @@ shipped features are listed.
 
 ### Audio (100% Procedural)
 - All sound effects are synthesized at startup — no audio files are shipped.
-- Includes: sword swing whoosh, hit crunch, crystal chime, dash swoosh, boss slam rumble, boss slam warning ping, teleport warp, giant-fireball warning / launch / impact, and wizard mini-fireball warning / launch.
+- Includes: sword swing whoosh, hit crunch, crystal chime, dash swoosh, boss slam rumble, boss slam warning ping, teleport warp, giant-fireball warning / launch / impact, and Ember Acolyte mini-fireball warning / launch.
 - An ambient drone BGM buffer is generated but currently disabled (kept for optional use).
 
 ### Scoring
 - Crystal pickup: `+25`.
-- Enemy kills: Crawler/Charger `+20`, Shadow Demon `+40`, Wizard `+5`, Shadow Lord (Boss) `+150`.
+- Enemy kills: Mossling/Cragbull `+20`, Gloomfiend `+40`, Ember Acolyte `+5`, Shadow Lord (Boss) `+150`.
 - **Kill combo** — a kill within `3 s` of the previous one raises the multiplier (`x1.2`, `x1.4`, … up to `x2.0`); it resets after `3 s` without a kill or when taking damage.
 - **Perfect dodge** — `+10` when dash i-frames absorb an attack.
 - **Victory bonus** — `+300` for winning.
@@ -181,12 +214,13 @@ shipped features are listed.
 ### UI / UX
 - **Home menu** — the first screen, offering Play, Hall of Heroes, Settings, How to Play, and Quit. Navigate by keyboard or mouse, and see the current best score and version.
 - **Glassmorphic login screen** with hero name entry (14-character limit), a live blinking text cursor, a placeholder prompt, and hover-reactive buttons. The name is pre-filled from your last run.
-- **Settings** and **How to Play** open a "Coming soon" placeholder screen with a Back button (not implemented yet).
+- **Settings** — a functional screen with AUDIO (Master Volume), GAMEPLAY (Screen Shake, Show Hints), and CONTROLS (rebindable movement keys, Reset Controls, Back) sections. See the changelog above.
+- **How to Play** — an informational tutorial screen with GAME OBJECTIVE, CONTROLS, and GAME MECHANICS sections, showing the live configured movement bindings. See the changelog above.
 - Hero avatar emblem and high-score record display on the login screen.
 - **In-game HUD** — health bar with numeric readout and heal indicator, dash charge meter with ready/dashing status, realm badge, hero profile badge, and a score / high-score / crystal tracker card.
 - On-screen controls prompt bar along the bottom.
 - **First-run hints** — short on-screen prompts for Move, Attack, Dash, and Pause appear during the first `30 s` of a new hero's first run, each dismissing once the action is used.
-- **Victory / defeat modals** with contextual actions (restart, dashboard, logout) and a "NEW RECORD" flag.
+- **Victory / defeat modals** with contextual actions (restart, dashboard, logout, back to home) and a "NEW RECORD" flag.
 - **Debug overlay** (toggled with `F3`) showing smoothed FPS, player HP, dash cooldown, and damage taken in the last 10 seconds.
 
 ### Presentation
@@ -209,11 +243,15 @@ shipped features are listed.
 | Enter Realm / Confirm | `Enter` (login screen)                    |
 | Hall of Heroes      | `H`                                         |
 | Toggle Debug Overlay | `F3`                                       |
-| Pause Menu          | `Esc` or `P`: Pause menu (Resume, Volume, Screen Shake, Quit to Login) |
+| Pause Menu          | `Esc` or `P`: Pause menu (Resume, Volume, Screen Shake, Show Hints, Quit to Login, Quit to Home) |
 | Pause: Navigate     | `Up`/`Down` or `W`/`S` + `Enter`: navigate & confirm |
-| Pause: Adjust       | `Left`/`Right`: change Volume / Screen Shake |
+| Pause: Adjust       | `Left`/`Right`: change Volume / Screen Shake / Show Hints |
+| Settings: Navigate  | `Up`/`Down` (or hover + left click)         |
+| Settings: Adjust    | `Left`/`Right`: change Volume / Screen Shake / Show Hints |
+| Settings: Rebind    | `Enter`/`Space` on a Move row, then press the new key (`Esc` cancels) |
 | Restart (after end) | `R`                                         |
 | Logout to Home menu | `L` (after end)                             |
+| Back to Home        | `B` (after end)                             |
 | Close / Back        | `Esc` on screen, exit from the Home menu   |
 
 > Tip: Dash grants brief invulnerability — use it to phase through boss shockwaves.
@@ -315,7 +353,7 @@ The game is organized as a single-file program with clearly separated systems.
 
 ### Design Highlights
 - **Zero external assets** — audio via waveform synthesis, art via SFML primitives (`ConvexShape`, `VertexArray`, `CircleShape`).
-- **Allocation-aware effects** — the teleport pod and vortex buffers, along with the fixed-size fireball, ember/smoke, and wizard pools, are built once and reused; per-frame allocations are avoided in hot paths.
+- **Allocation-aware effects** — the teleport pod and vortex buffers, along with the fixed-size fireball, ember/smoke, and Ember Acolyte pools, are built once and reused; per-frame allocations are avoided in hot paths.
 - **Depth-correct compositing** — every world object provides a sort key so foreground and background elements overlap naturally.
 - **Additive-blended energy** — glows, arcs, and sparks use additive blending for a luminous, cinematic look.
 
@@ -324,13 +362,13 @@ The game is organized as a single-file program with clearly separated systems.
 - Dash details: `1.2 s` cooldown, `0.22 s` dash duration, `0.12 s` i-frames.
 - Auto-heal: `3 HP/s` starting `4 s` after the last damage taken.
 - Attack cooldown: `0.35 s`; attack window: `0.22 s`.
-- Enemy wind-up: Demon `0.3 s`, Boss melee `0.4 s`.
+- Enemy wind-up: Gloomfiend `0.3 s`, Boss melee `0.4 s`.
 - Boss slam interval: `3.4 s`; slam telegraph: `0.7 s`; shockwave damage: `16`.
 - Boss melee damage: `16`.
 - Crystal pickup: `+25` score and `+20 HP`.
-- Score rewards: Crawler `20`, Demon `40`, Wizard `5`, Boss `150`.
-- Giant fireball (Mountains): `480 px/s`, player damage `30`, warning `0.8 s`.
-- Wizard mini fireball: `300 px/s`, player damage `8`, cooldown `2.5–4.0 s`, telegraph `0.5 s`.
+- Score rewards: Mossling `20`, Gloomfiend `40`, Ember Acolyte `5`, Boss `150`.
+- Giant fireball (Mountains): `480 px/s`, player damage `12`, warning `0.8 s`.
+- Ember Acolyte mini fireball: `300 px/s`, player damage `8` (Forest) / `4` (Mountains), cooldown `2.5–4.0 s`, telegraph `0.5 s`.
 
 ---
 
@@ -340,7 +378,7 @@ The game is organized as a single-file program with clearly separated systems.
 | --------------- | ------------------------------------------------------------- | -------------------------------- |
 | `highscore.txt` | Single integer                                                | Best score across all runs       |
 | `history.txt`   | `name<TAB>score<TAB>crystals<TAB>realm<TAB>outcome` per line  | Full match history for the archive |
-| `settings.txt`  | `key=value` lines (`volume`, `screenShake`, `showHints`)       | Player-adjustable settings        |
+| `settings.txt`  | `key=value` lines (`volume`, `screenShake`, `showHints`, plus `moveForward`, `moveBackward`, `moveLeft`, `moveRight` key codes) | Player-adjustable settings        |
 | `hints_seen.txt`| One hero name per line                                          | First-run hint flags per hero     |
 
 All files are created automatically on first run and stored in the game directory. Existing saves carry over unchanged after a rename.
